@@ -15,7 +15,9 @@ cd "$(dirname "$0")"
 
 BIN_LOCAL="${BIN_LOCAL:-/tmp/cbuild/Compositor}"
 DMG="${DMG:-/tmp/compdmg/c.dmg}"
-SRC_APP="/Volumes/Compositor 中文体验版/Compositor 中文体验版.app"
+# SRC_APP 不再硬编码：旧版把卷名写死（"Compositor 中文体验版"），
+# 一旦上游改了卷名/应用名就会失效。现在改为自动探测，也允许用环境变量显式指定。
+SRC_APP="${SRC_APP:-}"
 DEST_APP="${DEST_APP:-$HOME/Applications/Compositor.app}"
 
 echo "════════════════════════════════════════════"
@@ -27,14 +29,92 @@ echo "════════════════════════�
 echo "✓ 编译产物: $(ls -lh "$BIN_LOCAL" | awk '{print $5}')  $(file -b "$BIN_LOCAL" | cut -c1-60)"
 
 # ---------- 2. 准备源 .app（必要时挂载 DMG）----------
-if [ ! -d "$SRC_APP" ]; then
-  [ -f "$DMG" ] || { echo "✗ 找不到 $SRC_APP，也找不到安装包 $DMG"; exit 1; }
-  echo "· 挂载安装包镜像…"
+# 优先用显式指定的 SRC_APP；否则扫 /Volumes 下卷名含 Compositor 的已挂载卷。
+#
+# ⚠️ 关键教训：不能只看卷名就取第一个 .app。
+# 本机曾同时挂着两个包——/Volumes/Compositor 是上游英文原版 v1.2.4，
+# /Volumes/Compositor 中文体验版 才是汉化版 v1.2.2.1。按字母序前者在前，
+# 结果把英文资源装配进去，中文本地化直接丢失。所以必须校验候选包内容。
+#
+# 判定顺序：带 zh-Hans.lproj 的优先（本工程就是要中文）→ 同级取 mtime 最新者。
+# 注意：诊断信息一律写 stderr，否则会污染命令替换的返回值。
+find_src_app() {
+  if [ -n "$SRC_APP" ] && [ -d "$SRC_APP" ]; then printf '%s' "$SRC_APP"; return 0; fi
+
+  ALL=""; ZH=""
+  for vol in /Volumes/*; do
+    [ -d "$vol" ] || continue
+    case "$(basename "$vol")" in
+      *Compositor*|*compositor*) ;;
+      *) continue ;;
+    esac
+    for app in "$vol"/*.app; do
+      [ -d "$app" ] || continue
+      ALL="${ALL}${app}"$'\n'
+      [ -d "$app/Contents/Resources/zh-Hans.lproj" ] && ZH="${ZH}${app}"$'\n'
+    done
+  done
+
+  [ -n "$ALL" ] || return 1
+
+  if [ -n "$ZH" ]; then POOL="$ZH"; else
+    POOL="$ALL"
+    echo "· ⚠️ 候选里没有一个带 zh-Hans.lproj，装配后将没有中文界面" >&2
+  fi
+
+  # 把全部候选（含被排除的）摊开报告，避免"悄悄选错"这种事再次发生
+  N_ALL=$(printf '%s' "$ALL" | grep -c . || true)
+  if [ "$N_ALL" -gt 1 ]; then
+    echo "· 发现 $N_ALL 个候选资源包：" >&2
+    while IFS= read -r a; do
+      [ -n "$a" ] || continue
+      V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$a/Contents/Info.plist" 2>/dev/null || echo "?")
+      if [ -d "$a/Contents/Resources/zh-Hans.lproj" ]; then
+        L="含中文 ✓ 可用"
+      else
+        L="无中文 ✗ 排除"
+      fi
+      echo "    - $a  (v$V, $L)" >&2
+    done <<< "$ALL"
+  fi
+
+  BEST=""; BEST_T=0
+  while IFS= read -r a; do
+    [ -n "$a" ] || continue
+    T=$(stat -f %m "$a" 2>/dev/null || echo 0)
+    if [ "$T" -gt "$BEST_T" ]; then BEST_T="$T"; BEST="$a"; fi
+  done <<< "$POOL"
+
+  [ -n "$BEST" ] || return 1
+  printf '%s' "$BEST"
+}
+
+if ! DETECTED=$(find_src_app); then
+  [ -f "$DMG" ] || { echo "✗ 找不到已挂载的资源来源，也找不到安装包 $DMG"; exit 1; }
+  # 先卸载残留的旧卷，避免多个版本同时挂着时选错
+  for vol in /Volumes/*; do
+    case "$(basename "$vol")" in
+      *Compositor*|*compositor*) echo "· 卸载残留卷 $(basename "$vol")"; hdiutil detach "$vol" -quiet 2>/dev/null || true ;;
+    esac
+  done
+  echo "· 挂载安装包镜像 $DMG"
   hdiutil attach -nobrowse -quiet "$DMG"
   sleep 1
+  DETECTED=$(find_src_app) || { echo "✗ 挂载后仍找不到源 .app"; exit 1; }
 fi
-[ -d "$SRC_APP" ] || { echo "✗ 挂载后仍找不到源 .app"; exit 1; }
+SRC_APP="$DETECTED"
+[ -d "$SRC_APP" ] || { echo "✗ 资源来源不是目录: $SRC_APP"; exit 1; }
+
+# 装配前最后一道闸：没有中文本地化就停下来问清楚
+HAS_ZH=0
+[ -d "$SRC_APP/Contents/Resources/zh-Hans.lproj" ] && HAS_ZH=1
 echo "✓ 资源来源: $SRC_APP"
+if [ "$HAS_ZH" -eq 0 ]; then
+  echo "✗ 该资源包不含 zh-Hans.lproj，装配出来会是英文界面。"
+  echo "  若确认要英文，可加 ALLOW_NO_ZH=1 重跑；否则请指定正确的 SRC_APP，例如："
+  echo "    SRC_APP=\"/Volumes/Compositor 中文体验版/Compositor 中文体验版.app\" ./make-app.sh"
+  [ "${ALLOW_NO_ZH:-0}" = "1" ] || exit 1
+fi
 
 # ---------- 3. 拷贝包结构，只换可执行文件 ----------
 echo "· 拷贝应用包到 $DEST_APP"
