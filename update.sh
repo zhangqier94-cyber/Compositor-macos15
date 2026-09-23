@@ -263,20 +263,47 @@ fi
 
 # 已知的 macOS 26 专属 API：这些是 objc_msgSend 动态派发的，
 # 不在导入符号表里，符号探针查不出来，只能在源码层扫。
-TOKENS='ToolbarSpacer|sharedBackgroundVisibility|NSPopUpButton|borderShape|glassEffect|TaskValueModifier2'
-SCAN=$(grep -rnE "\b($TOKENS)\b" Compositor --include='*.swift' 2>/dev/null || true)
-if [ -n "$SCAN" ]; then
+#
+# 名单里刻意不放 NSPopUpButton —— 它本身是 macOS 15 就有的老类型
+# （实测当前源码里有 12 处正常使用），只有它的 .borderShape 属性是新加的，
+# 把类型名放进来会造成大量误报，等于把告警废掉。
+TOKENS='ToolbarSpacer|sharedBackgroundVisibility|borderShape|glassEffect|TaskValueModifier2'
+
+# 关键：必须先剥掉行内注释再判断。
+# 我们自己写的移植说明注释里就带着 "ToolbarSpacer 是 macOS 26 新增 API"、
+# "原代码为 button.borderShape = .capsule" 这类字样，
+# 直接 grep 会把 5 处说明文字当成真调用，全是误报。
+# 局限：字符串字面量里的 // 会被误当注释起点，对这种场景够用。
+scan_code_hits() {
+  grep -rnE "\b($TOKENS)\b" Compositor --include='*.swift' 2>/dev/null \
+  | while IFS= read -r hit; do
+      code_only=$(printf '%s' "$hit" | sed 's://.*::')
+      if printf '%s' "$code_only" | grep -qE "\b($TOKENS)\b"; then
+        printf '%s\n' "$hit"
+      fi
+    done
+}
+
+RAW_N=$(grep -rnE "\b($TOKENS)\b" Compositor --include='*.swift' 2>/dev/null | wc -l | tr -d ' ')
+SCAN=$(scan_code_hits)
+CODE_N=$(printf '%s' "$SCAN" | grep -c . || true)
+[ -n "$SCAN" ] || CODE_N=0
+
+if [ "$CODE_N" -gt 0 ]; then
   echo
-  echo "⚠️ 源码里出现 macOS 26 专属 API 嫌疑："
+  echo "⚠️ 源码里出现 macOS 26 专属 API 的疑似真调用："
   printf '%s\n' "$SCAN" | sed 's/^/    /'
+  echo "  → 这类 API 不在导入符号表里，符号探针查不出，只能靠这里拦。"
   echo "  → 若编译报 'has no member' 或运行时崩溃，删掉对应调用即可（回落系统默认外观）。"
   FIXED=1
+elif [ "$RAW_N" -gt 0 ]; then
+  echo "· API 扫描：命中 $RAW_N 处，但都只是注释里提到，不是真调用（已过滤）"
 fi
 if [ "$FIXED" -eq 0 ]; then
   echo "· 部署目标与 API 扫描均无异常"
 fi
 
-# 让这些修正进入版本历史，下次 cherry-pick 才不会互相打架
+# 让这些修正进入版本历史，下次 rebase 才不会互相打架
 if [ -n "$(git status --porcelain)" ]; then
   git add -A
   git commit -q -m "port: 跟随 $NEW 的事后修正（部署目标 / macOS 26 API）"
