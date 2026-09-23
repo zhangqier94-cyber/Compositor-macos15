@@ -25,7 +25,7 @@ echo " 装配 Compositor（macOS 15 兼容版）"
 echo "════════════════════════════════════════════"
 
 # ---------- 1. 前置检查 ----------
-[ -f "$BIN_LOCAL" ] || { echo "✗ 找不到编译产物 $BIN_LOCAL，请先编译"; exit 1; }
+[ -f "$BIN_LOCAL" ] || { echo "✗ 找不到编译产物 ${BIN_LOCAL}，请先编译"; exit 1; }
 echo "✓ 编译产物: $(ls -lh "$BIN_LOCAL" | awk '{print $5}')  $(file -b "$BIN_LOCAL" | cut -c1-60)"
 
 # ---------- 2. 准备源 .app（必要时挂载 DMG）----------

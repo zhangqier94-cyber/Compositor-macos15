@@ -88,7 +88,7 @@ release_sha_url() {
 if [ ! -d .git ]; then echo "✗ 当前目录不是 git 仓库"; exit 1; fi
 CUR_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CUR_BRANCH" != "$BRANCH" ]; then
-  echo "✗ 当前在分支 $CUR_BRANCH，期望 $BRANCH。"
+  echo "✗ 当前在分支 ${CUR_BRANCH}，期望 ${BRANCH}。"
   echo "  先执行： git checkout $BRANCH"
   exit 1
 fi
@@ -97,10 +97,29 @@ if [ -n "$(git status --porcelain)" ]; then
   git status --short | sed 's/^/    /'
   exit 1
 fi
-PORT_COMMIT=$(git rev-parse "$BRANCH")
-BASE=$(git rev-parse "$BRANCH~1")
-echo "· 当前分支:   $BRANCH ($(git rev-parse --short "$PORT_COMMIT"))"
-echo "· 移植基线:   $(git rev-parse --short "$BASE")  $(git describe --tags "$BASE" 2>/dev/null || echo '')"
+# 移植基线 = 从分支顶端往回走，第一个打了 zh-beta 标签的提交
+#
+# ⚠️ 不要用 `$BRANCH~1` 当基线。最初就是那么写的，等到往分支上补第二个
+# 提交（修 make-app.sh）之后，`~1` 就变成我们自己那个提交了，基线凭空错位。
+# 回走查标签对"分支上有几个提交"完全不敏感，是稳的。
+find_base_tag() {
+  for c in $(git rev-list "$BRANCH"); do
+    t=$(git tag --points-at "$c" | grep -E '^zh-beta-v' | head -1)
+    if [ -n "$t" ]; then printf '%s' "$t"; return 0; fi
+  done
+  return 1
+}
+
+PORT_TIP=$(git rev-parse "$BRANCH")
+BASE_TAG=$(find_base_tag) || {
+  echo "✗ 无法确定移植基线（在 $BRANCH 的历史里找不到任何 zh-beta 标签）"
+  exit 1
+}
+BASE_COMMIT=$(git rev-parse "$BASE_TAG^{commit}")
+N_PORT_COMMITS=$(git rev-list --count "$BASE_COMMIT..$PORT_TIP")
+
+echo "· 当前分支:   $BRANCH ($(git rev-parse --short "$PORT_TIP"), 含 $N_PORT_COMMITS 个移植提交)"
+echo "· 移植基线:   $(git rev-parse --short "$BASE_COMMIT")  $BASE_TAG"
 
 # ---------- 1. 拉取最新 tag ----------
 echo "· 拉取上游 tag…"
@@ -111,16 +130,20 @@ echo "· 最新汉化版: $NEW"
 
 # 顺带提示汉化落后原版多少（不阻塞流程）
 ORIG_TAG=$(latest_release_tag "$ORIG")
-[ -n "$ORIG_TAG" ] && echo "· 原版上游:   $ORIG_TAG （仅英文，仅供参考汉化进度）"
+if [ -n "$ORIG_TAG" ]; then
+  echo "· 原版上游:   $ORIG_TAG （仅英文，仅供参考汉化进度）"
+fi
 
-if [ "$BASE" = "$(git rev-parse "$NEW^{commit}")" ]; then
+NEW_COMMIT=$(git rev-parse "$NEW^{commit}")
+if [ "$BASE_COMMIT" = "$NEW_COMMIT" ]; then
   echo
-  echo "✓ 已是最新（基线就是 $NEW），无需更新。"
+  echo "✓ 已是最新（移植基线就是 ${NEW}），无需更新。"
   # 顺手核对一下已装应用是否与当前基线的版本号一致
   if [ -f "$HOME/Applications/Compositor.app/Contents/Info.plist" ]; then
     CUR_V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
               "$HOME/Applications/Compositor.app/Contents/Info.plist" 2>/dev/null || echo "?")
     echo "  已安装应用版本: $CUR_V"
+    echo "  基线对应版本:   $(printf '%s' "$BASE_TAG" | sed -E 's/^zh-beta-v//')"
   fi
   exit 0
 fi
@@ -131,8 +154,10 @@ echo "· 可更新到:   $NEW  (v$NEW_VER)"
 if [ "$CHECK_ONLY" -eq 1 ]; then
   echo
   echo "（--check 模式，未做任何改动）"
-  echo "新版本包含的提交："
-  git log --oneline "$BASE..$NEW" 2>/dev/null | sed 's/^/    /' || echo "    （浅克隆，无法列出）"
+  echo "新版本相对当前基线的提交："
+  git log --oneline "$BASE_COMMIT..$NEW_COMMIT" 2>/dev/null | sed 's/^/    /' || echo "    （浅克隆，无法列出）"
+  echo
+  echo "继续更新请执行： ./update.sh"
   exit 0
 fi
 
@@ -178,7 +203,7 @@ else
       if [ -n "$EXPECT" ] && [ "$EXPECT" = "$ACTUAL" ]; then
         echo "  ✓ SHA-256 一致"
       else
-        echo "  ⚠️ SHA-256 不一致（期望 $EXPECT，实际 $ACTUAL）"
+        echo "  ⚠️ SHA-256 不一致（期望 ${EXPECT}，实际 ${ACTUAL}）"
         printf '  仍要继续吗？[y/N] '
         read -r a2 || a2=""
         case "$a2" in y|Y) ;; *) echo "已取消"; exit 1 ;; esac
@@ -187,42 +212,45 @@ else
   fi
 fi
 
-# ---------- 4. 把移植补丁搬到新 tag 上 ----------
+# ---------- 4. 把移植提交搬到新基线 ----------
+# 用 rebase --onto 而不是 cherry-pick 单个提交：
+# 分支上可能已经积累了多个移植提交（例如后来又修了 make-app.sh），
+# 只挑最后一个会把前面的改动全丢掉。--onto 会把 BASE_TAG..BRANCH 整个范围重放。
+# --empty=drop：若上游已包含同等改动导致某提交变空，直接丢弃而不是停下来。
 echo
-echo "· 切换到新基线 $NEW 并搬移移植补丁"
-git checkout -B "$BRANCH" "$NEW" --quiet
-echo "  基线: $(git log --oneline -1)"
-
+echo "· 把 $N_PORT_COMMITS 个移植提交搬到新基线 $NEW"
 set +e
-git cherry-pick -X patience "$PORT_COMMIT" --quiet
-CP_STATUS=$?
+git rebase --onto "$NEW" "$BASE_TAG" --empty=drop 2>&1 | sed 's/^/    /'
+RB_STATUS=${PIPESTATUS[0]}
 set -e
 
-# 两种情况要分开处理：
-#   a) 真的冲突   → 有未合并文件（U 状态）
-#   b) 空 cherry-pick → 上游已经包含了我们的改动，没有任何文件冲突
-#      这种情况 git 也返回非 0，但绝不能当成冲突回滚
-UNMERGED=$(git diff --name-only --diff-filter=U)
-if [ -z "$UNMERGED" ] && [ -f .git/CHERRY_PICK_HEAD ]; then
-  echo "· 上游已包含同等改动，本次移植为空，跳过"
-  git cherry-pick --skip --quiet 2>/dev/null || git cherry-pick --quit 2>/dev/null || true
-  CP_STATUS=0
-fi
-
-if [ $CP_STATUS -ne 0 ]; then
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+  UNMERGED=$(git diff --name-only --diff-filter=U)
   echo
-  echo "✗ 移植补丁在新版本上产生了冲突，涉及以下文件："
+  echo "✗ 移植提交在新版本上产生冲突，涉及以下文件："
   printf '%s\n' "$UNMERGED" | sed 's/^/    /'
+  git rebase --abort 2>/dev/null || true
   echo
-  echo "  已自动回滚，你的分支仍停在原状态（备份分支 $BACKUP 也保留着）。"
-  git cherry-pick --abort 2>/dev/null || true
-  git checkout -B "$BRANCH" "$PORT_COMMIT" --quiet
+  echo "  已自动回滚。分支仍停在 $BRANCH ($(git rev-parse --short "$PORT_TIP"))，"
+  echo "  备份分支 $BACKUP 也保留着，什么都没丢。"
   echo
   echo "  这类冲突通常意味着上游改动了我们打过补丁的同一段代码。"
   echo "  把上面的文件清单发给我，我来逐个手工合并。"
   exit 1
 fi
-echo "✓ 补丁已干净地搬到 $NEW"
+
+if [ "$RB_STATUS" -ne 0 ]; then
+  echo "✗ 搬移失败（git rebase 退出码 ${RB_STATUS}），未产生冲突但未能完成。"
+  echo "  当前状态请用 git status 查看，必要时回滚： git checkout -B $BRANCH $BACKUP"
+  exit 1
+fi
+
+NOW_PORT_COMMITS=$(git rev-list --count "$NEW_COMMIT..$BRANCH")
+echo "✓ 搬移完成，分支上现有 $NOW_PORT_COMMITS 个移植提交"
+if [ "$NOW_PORT_COMMITS" -eq 0 ]; then
+  echo "  ⚠️ 移植提交全被判为空提交丢掉了 —— 说明上游可能自己就做完了这些兼容改动。"
+  echo "     先别急，下面的事后修正与编译会验证这一点。"
+fi
 
 # ---------- 5. 事后修正：部署目标 + 新增 macOS 26 API 扫描 ----------
 FIXED=0
