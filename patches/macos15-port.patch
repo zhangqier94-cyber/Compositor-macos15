@@ -38,6 +38,90 @@ index 451950a..ddd3363 100644
  				MARKETING_VERSION = 1.2.2;
  				PRODUCT_BUNDLE_IDENTIFIER = com.wonderassembly.compositor.tests;
  				PRODUCT_NAME = "$(TARGET_NAME)";
+diff --git a/Compositor.xcodeproj/xcshareddata/xcschemes/Compositor.xcscheme b/Compositor.xcodeproj/xcshareddata/xcschemes/Compositor.xcscheme
+new file mode 100644
+index 0000000..c06275a
+--- /dev/null
++++ b/Compositor.xcodeproj/xcshareddata/xcschemes/Compositor.xcscheme
+@@ -0,0 +1,78 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Scheme
++   LastUpgradeVersion = "2600"
++   version = "1.7">
++   <BuildAction
++      parallelizeBuildables = "YES"
++      buildImplicitDependencies = "YES">
++      <BuildActionEntries>
++         <BuildActionEntry
++            buildForTesting = "YES"
++            buildForRunning = "YES"
++            buildForProfiling = "YES"
++            buildForArchiving = "YES"
++            buildForAnalyzing = "YES">
++            <BuildableReference
++               BuildableIdentifier = "primary"
++               BlueprintIdentifier = "8F311F98304F03BB0017D14F"
++               BuildableName = "Compositor.app"
++               BlueprintName = "Compositor"
++               ReferencedContainer = "container:Compositor.xcodeproj">
++            </BuildableReference>
++         </BuildActionEntry>
++      </BuildActionEntries>
++   </BuildAction>
++   <TestAction
++      buildConfiguration = "Debug"
++      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
++      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
++      shouldUseLaunchSchemeArgsEnv = "YES">
++      <Testables>
++      </Testables>
++   </TestAction>
++   <LaunchAction
++      buildConfiguration = "Debug"
++      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
++      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
++      launchStyle = "0"
++      useCustomWorkingDirectory = "NO"
++      ignoresPersistentStateOnLaunch = "NO"
++      debugDocumentVersioning = "YES"
++      debugServiceExtension = "internal"
++      allowLocationSimulation = "YES">
++      <BuildableProductRunnable
++         runnableDebuggingMode = "0">
++         <BuildableReference
++            BuildableIdentifier = "primary"
++            BlueprintIdentifier = "8F311F98304F03BB0017D14F"
++            BuildableName = "Compositor.app"
++            BlueprintName = "Compositor"
++            ReferencedContainer = "container:Compositor.xcodeproj">
++         </BuildableReference>
++      </BuildableProductRunnable>
++   </LaunchAction>
++   <ProfileAction
++      buildConfiguration = "Release"
++      shouldUseLaunchSchemeArgsEnv = "YES"
++      savedToolIdentifier = ""
++      useCustomWorkingDirectory = "NO"
++      debugDocumentVersioning = "YES">
++      <BuildableProductRunnable
++         runnableDebuggingMode = "0">
++         <BuildableReference
++            BuildableIdentifier = "primary"
++            BlueprintIdentifier = "8F311F98304F03BB0017D14F"
++            BuildableName = "Compositor.app"
++            BlueprintName = "Compositor"
++            ReferencedContainer = "container:Compositor.xcodeproj">
++         </BuildableReference>
++      </BuildableProductRunnable>
++   </ProfileAction>
++   <AnalyzeAction
++      buildConfiguration = "Debug">
++   </AnalyzeAction>
++   <ArchiveAction
++      buildConfiguration = "Release"
++      revealArchiveInOrganizer = "YES">
++   </ArchiveAction>
++</Scheme>
 diff --git a/Compositor/CompositorApp.swift b/Compositor/CompositorApp.swift
 index 453aa4b..cc61895 100644
 --- a/Compositor/CompositorApp.swift
@@ -1924,3 +2008,1047 @@ index 1255732..f01690f 100644
          // A long font name is cut off at its end rather than widening the control or scrolling its start away.
          button.cell?.lineBreakMode = .byTruncatingTail
          button.cell?.usesSingleLineMode = true
+diff --git a/build-clt.sh b/build-clt.sh
+new file mode 100755
+index 0000000..137ab3d
+--- /dev/null
++++ b/build-clt.sh
+@@ -0,0 +1,91 @@
++#!/bin/bash
++#
++# build-clt.sh — 只用命令行工具链编译 Compositor（不需要 Xcode，不需要 Apple ID）
++#
++# 原理：macOS 自带的 Command Line Tools 里已经有 swiftc、clang 和完整的 macOS SDK，
++# 足够编译这个工程。工程本身零远程依赖（无 SPM 包），所以绕开 xcodebuild 完全可行。
++#
++# 用法：
++#   ./build-clt.sh            # 编译到 /tmp/cbuild/Compositor
++#   BIN_OUT=./Compositor ./build-clt.sh
++#
++set -euo pipefail
++cd "$(dirname "$0")"
++
++BIN_OUT="${BIN_OUT:-/tmp/cbuild/Compositor}"
++mkdir -p "$(dirname "$BIN_OUT")"
++
++echo "════════════════════════════════════════════"
++echo " 编译 Compositor（命令行工具链）"
++echo "════════════════════════════════════════════"
++
++# ---------- 1. 选择与编译器匹配的 SDK ----------
++# 关键：SDK 必须与 swiftc 版本匹配。
++# 本机曾出现 CLT 编译器 6.1.2 遇上 Swift 6.2 构建的 MacOSX26.2.sdk，
++# 直接报 "this SDK is not supported by the compiler"。所以这里逐个试。
++SWIFT_VER=$(swift --version 2>&1 | sed -nE 's/.*Apple Swift version ([0-9.]+).*/\1/p')
++echo "· 编译器: swift $SWIFT_VER"
++
++SDK=""
++for cand in ${SDK:-} $(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX15*.sdk 2>/dev/null | sort -r) \
++            /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk; do
++  [ -n "$cand" ] && [ -d "$cand" ] || continue
++  printf 'import Foundation\n' > /tmp/_sdk_probe.swift
++  if xcrun swiftc -sdk "$cand" -target x86_64-apple-macos15.0 -typecheck \
++       /tmp/_sdk_probe.swift >/dev/null 2>&1; then
++    SDK="$cand"; break
++  fi
++done
++
++if [ -z "$SDK" ]; then
++  echo "✗ 找不到能与当前 swiftc 匹配的 macOS SDK。"
++  echo "  可用的 SDK："; ls -1 /Library/Developer/CommandLineTools/SDKs/ | sed 's/^/    /'
++  echo "  提示：装一个与本机系统同时期的 Command Line Tools（xcode-select --install）通常即可解决。"
++  exit 1
++fi
++echo "· 使用 SDK: $SDK"
++
++# ---------- 2. 收集源文件 ----------
++# 注意：工程是 Swift + C 混合，8 个 C 文件通过桥接头暴露给 Swift。
++# 只喂 .swift 会报 "cannot find 'heal_coverage_bounds' in scope" 之类的错。
++find Compositor -name "*.swift" | sort > /tmp/_compositor_swift.txt
++ls Compositor/Rendering/*.c > /tmp/_compositor_c.txt
++echo "· 源文件: $(wc -l < /tmp/_compositor_swift.txt | tr -d ' ') 个 Swift + $(wc -l < /tmp/_compositor_c.txt | tr -d ' ') 个 C"
++
++# ---------- 3. 编译 ----------
++# -swift-version 5      工程原本就是 Swift 5 语言模式
++# -import-objc-header   工程自带的桥接头，缺了 C 函数就找不到
++# 部署目标 15.0         本机 macOS 15.8 可用
++echo "· 开始编译…"
++set +e
++xcrun swiftc \
++  -sdk "$SDK" \
++  -target x86_64-apple-macos15.0 \
++  -swift-version 5 \
++  -module-name Compositor \
++  -Onone \
++  -import-objc-header Compositor/Compositor-Bridging-Header.h \
++  -o "$BIN_OUT" \
++  @/tmp/_compositor_swift.txt @/tmp/_compositor_c.txt
++STATUS=$?
++set -e
++
++if [ $STATUS -ne 0 ]; then
++  echo
++  echo "✗ 编译失败。常见原因："
++  echo "  · 报 'main actor-isolated … in a synchronous nonisolated context'"
++  echo "    → 工程用 -default-isolation MainActor 编译，本工具链不支持该开关，"
++  echo "      需在报错处补 @MainActor（或对纯数据类型改成 nonisolated）"
++  echo "  · 报 'cannot find …' 找不到某个 C 函数 → 检查桥接头是否包含对应头文件"
++  exit $STATUS
++fi
++
++# ---------- 4. 结果 ----------
++echo
++echo "✓ 编译成功"
++SIZE=$(ls -lh "$BIN_OUT" | awk '{print $5}')
++echo "  产物:     ${BIN_OUT}  （${SIZE}）"
++echo "  架构:     $(lipo -info "$BIN_OUT" | sed 's/.*: //')"
++echo "  最低系统: $(otool -l "$BIN_OUT" | grep -A3 LC_BUILD_VERSION | grep minos | head -1 | awk '{print $2}')"
++echo
++echo "下一步：./make-app.sh   # 装配成可运行的 .app"
+diff --git a/build.sh b/build.sh
+new file mode 100755
+index 0000000..bb05e00
+--- /dev/null
++++ b/build.sh
+@@ -0,0 +1,149 @@
++#!/bin/bash
++# Compositor macOS 15 兼容版 — 一键构建脚本
++#
++# 用法：
++#   chmod +x build.sh
++#   ./build.sh
++#
++# 产物：build/Build/Products/Release/Compositor.app
++#
++# 说明：本脚本通过 DEVELOPER_DIR 指定 Xcode，不需要 sudo、不需要改全局 xcode-select。
++
++set -o pipefail
++cd "$(dirname "$0")" || exit 1
++
++echo "==================================================="
++echo " Compositor macOS 15 兼容版 构建"
++echo "==================================================="
++echo
++
++# ---------- 1. 定位 Xcode ----------
++echo "[1/5] 定位 Xcode"
++
++XC=""
++if [ -n "$DEVELOPER_DIR" ] && [ -d "$DEVELOPER_DIR" ]; then
++  XC="$DEVELOPER_DIR"
++else
++  # 优先取 /Applications 下的 Xcode 26.x
++  for cand in /Applications/Xcode.app /Applications/Xcode-26.*.app /Applications/Xcode_26*.app; do
++    if [ -d "$cand/Contents/Developer" ]; then XC="$cand/Contents/Developer"; break; fi
++  done
++fi
++
++if [ -z "$XC" ]; then
++  CUR=$(xcode-select -p 2>/dev/null)
++  if echo "$CUR" | grep -q "Xcode.app"; then XC="$CUR"; fi
++fi
++
++if [ -z "$XC" ]; then
++  echo
++  echo "  ✗ 没找到完整的 Xcode（只有 Command Line Tools 无法构建本工程）。"
++  echo
++  echo "  请先安装 Xcode 26.0 ~ 26.3，装好后确认它位于 /Applications 下。"
++  echo "  注意：Xcode 26.4 起要求 macOS 26.2 且仅提供 Apple Silicon 版本，本机用不了。"
++  echo
++  exit 1
++fi
++
++export DEVELOPER_DIR="$XC"
++echo "  使用: $XC"
++xcodebuild -version 2>/dev/null | sed 's/^/  /'
++
++XV=$(xcodebuild -version 2>/dev/null | head -1 | awk '{print $2}')
++case "$XV" in
++  26.0|26.0.*|26.1|26.1.*|26.2|26.2.*|26.3|26.3.*)
++    echo "  ✓ Xcode $XV 可用" ;;
++  *)
++    echo "  ⚠ 当前为 Xcode $XV。本工程已按 Xcode 26.0–26.3 验证，其他版本可能需额外调整。" ;;
++esac
++echo
++
++# ---------- 2. 确认部署目标已下调 ----------
++echo "[2/5] 检查部署目标"
++TARGETS=$(grep -o "MACOSX_DEPLOYMENT_TARGET = [0-9.]*" Compositor.xcodeproj/project.pbxproj | sort -u)
++echo "  $TARGETS" | sed 's/^/  /'
++if echo "$TARGETS" | grep -q "MACOSX_DEPLOYMENT_TARGET = 2[6-9]"; then
++  echo "  ✗ 仍存在 26.x 的部署目标，请把 project.pbxproj 里所有 MACOSX_DEPLOYMENT_TARGET 改为 15.0"
++  exit 1
++fi
++echo "  ✓ 部署目标已下调"
++echo
++
++# ---------- 3. 确认 scheme ----------
++echo "[3/5] 检查 scheme"
++if ! ls Compositor.xcodeproj/xcshareddata/xcschemes/*.xcscheme >/dev/null 2>&1; then
++  echo "  ✗ 缺少共享 scheme，无法用 xcodebuild 构建。"
++  exit 1
++fi
++echo "  ✓ $(ls Compositor.xcodeproj/xcshareddata/xcschemes/ | tr '\n' ' ')"
++echo
++
++# ---------- 4. 清理旧产物（可选） ----------
++if [ "${1:-}" = "--clean" ]; then
++  echo "[4/5] 清理旧的构建产物"
++  rm -rf build
++  echo "  ✓ 已清理"
++else
++  echo "[4/5] 跳过清理（加 --clean 可全量重建）"
++fi
++echo
++
++# ---------- 5. 构建 ----------
++echo "[5/5] 开始构建（Release / ad-hoc 本地签名）"
++echo
++echo "  DEVELOPER_DIR=$DEVELOPER_DIR xcodebuild -scheme Compositor ..."
++echo
++
++xcodebuild \
++  -project Compositor.xcodeproj \
++  -scheme Compositor \
++  -configuration Release \
++  -derivedDataPath build \
++  -destination 'generic/platform=macOS' \
++  CODE_SIGN_IDENTITY="-" \
++  CODE_SIGN_STYLE=Manual \
++  DEVELOPMENT_TEAM="" \
++  build
++
++STATUS=$?
++
++echo
++if [ $STATUS -ne 0 ]; then
++  echo "==================================================="
++  echo " 构建失败（退出码 $STATUS）"
++  echo "==================================================="
++  echo
++  echo "排查顺序："
++  echo "  1. 报某 API「is only available in macOS X.Y or newer」"
++  echo "     → project.pbxproj 里搜索 MACOSX_DEPLOYMENT_TARGET，把 15.0 调高到提示的版本；"
++  echo "       若提示的是 macOS 26 API，说明还有漏改的调用点，按文件行号处理。"
++  echo "  2. 报「unable to type-check this expression in reasonable time」"
++  echo "     → Xcode 对超大 ViewBuilder 的已知限制，把报错那行的表达式拆成几个局部变量。"
++  echo "  3. 报签名相关错误"
++  echo "     → 本脚本已用 ad-hoc 签名(-)，若仍失败，可在 Xcode 里把 Signing 设为"
++  echo "        \"Sign to Run Locally\"，或关闭 ENABLE_APP_SANDBOX。"
++  echo "  4. 想看完整日志，在命令末尾加 2>&1 | tee build.log"
++  echo
++  exit $STATUS
++fi
++
++echo "==================================================="
++echo " 构建成功"
++echo "==================================================="
++echo
++APP="build/Build/Products/Release/Compositor.app"
++if [ -d "$APP" ]; then
++  APPABS="$(cd "$APP/.." && pwd)/$(basename "$APP")"
++  echo "应用位置： $APPABS"
++  echo
++  echo "运行：  open \"$APPABS\""
++  echo "装机：  cp -R \"$APPABS\" /Applications/"
++  echo
++  echo "首次运行若是被 Gatekeeper 拦截（本地 ad-hoc 签名，未公证）："
++  echo "  右键点应用 > 打开 > 再点「打开」；或执行："
++  echo "  xattr -dr com.apple.quarantine \"$APPABS\""
++else
++  echo "未找到预期的 .app，请检查上面的输出。"
++  exit 1
++fi
++echo
+diff --git a/make-app.sh b/make-app.sh
+new file mode 100755
+index 0000000..9f1c549
+--- /dev/null
++++ b/make-app.sh
+@@ -0,0 +1,172 @@
++#!/bin/bash
++#
++# make-app.sh — 把本地编译出的可执行文件装配成可运行的 .app
++#
++# 思路：官方 DMG 里的 .app 已经包含了编译好的资源（Assets.car 图像资源、
++# zh-Hans.lproj 中文本地化、AppIcon.icns 图标、Info.plist）。这些资源与
++# 源码版本完全对应，可以直接复用。本脚本只把 Main executable 换成我们用
++# 命令行工具链（目标 macOS 15.0）重新编译出来的那份，然后改成新签名。
++#
++# 用法： ./make-app.sh
++#
++set -euo pipefail
++
++cd "$(dirname "$0")"
++
++BIN_LOCAL="${BIN_LOCAL:-/tmp/cbuild/Compositor}"
++DMG="${DMG:-/tmp/compdmg/c.dmg}"
++# SRC_APP 不再硬编码：旧版把卷名写死（"Compositor 中文体验版"），
++# 一旦上游改了卷名/应用名就会失效。现在改为自动探测，也允许用环境变量显式指定。
++SRC_APP="${SRC_APP:-}"
++DEST_APP="${DEST_APP:-$HOME/Applications/Compositor.app}"
++
++echo "════════════════════════════════════════════"
++echo " 装配 Compositor（macOS 15 兼容版）"
++echo "════════════════════════════════════════════"
++
++# ---------- 1. 前置检查 ----------
++[ -f "$BIN_LOCAL" ] || { echo "✗ 找不到编译产物 ${BIN_LOCAL}，请先编译"; exit 1; }
++echo "✓ 编译产物: $(ls -lh "$BIN_LOCAL" | awk '{print $5}')  $(file -b "$BIN_LOCAL" | cut -c1-60)"
++
++# ---------- 2. 准备源 .app（必要时挂载 DMG）----------
++# 优先用显式指定的 SRC_APP；否则扫 /Volumes 下卷名含 Compositor 的已挂载卷。
++#
++# ⚠️ 关键教训：不能只看卷名就取第一个 .app。
++# 本机曾同时挂着两个包——/Volumes/Compositor 是上游英文原版 v1.2.4，
++# /Volumes/Compositor 中文体验版 才是汉化版 v1.2.2.1。按字母序前者在前，
++# 结果把英文资源装配进去，中文本地化直接丢失。所以必须校验候选包内容。
++#
++# 判定顺序：带 zh-Hans.lproj 的优先（本工程就是要中文）→ 同级取 mtime 最新者。
++# 注意：诊断信息一律写 stderr，否则会污染命令替换的返回值。
++find_src_app() {
++  if [ -n "$SRC_APP" ] && [ -d "$SRC_APP" ]; then printf '%s' "$SRC_APP"; return 0; fi
++
++  ALL=""; ZH=""
++  for vol in /Volumes/*; do
++    [ -d "$vol" ] || continue
++    case "$(basename "$vol")" in
++      *Compositor*|*compositor*) ;;
++      *) continue ;;
++    esac
++    for app in "$vol"/*.app; do
++      [ -d "$app" ] || continue
++      ALL="${ALL}${app}"$'\n'
++      [ -d "$app/Contents/Resources/zh-Hans.lproj" ] && ZH="${ZH}${app}"$'\n'
++    done
++  done
++
++  [ -n "$ALL" ] || return 1
++
++  if [ -n "$ZH" ]; then POOL="$ZH"; else
++    POOL="$ALL"
++    echo "· ⚠️ 候选里没有一个带 zh-Hans.lproj，装配后将没有中文界面" >&2
++  fi
++
++  # 把全部候选（含被排除的）摊开报告，避免"悄悄选错"这种事再次发生
++  N_ALL=$(printf '%s' "$ALL" | grep -c . || true)
++  if [ "$N_ALL" -gt 1 ]; then
++    echo "· 发现 $N_ALL 个候选资源包：" >&2
++    while IFS= read -r a; do
++      [ -n "$a" ] || continue
++      V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$a/Contents/Info.plist" 2>/dev/null || echo "?")
++      if [ -d "$a/Contents/Resources/zh-Hans.lproj" ]; then
++        L="含中文 ✓ 可用"
++      else
++        L="无中文 ✗ 排除"
++      fi
++      echo "    - $a  (v$V, $L)" >&2
++    done <<< "$ALL"
++  fi
++
++  BEST=""; BEST_T=0
++  while IFS= read -r a; do
++    [ -n "$a" ] || continue
++    T=$(stat -f %m "$a" 2>/dev/null || echo 0)
++    if [ "$T" -gt "$BEST_T" ]; then BEST_T="$T"; BEST="$a"; fi
++  done <<< "$POOL"
++
++  [ -n "$BEST" ] || return 1
++  printf '%s' "$BEST"
++}
++
++if ! DETECTED=$(find_src_app); then
++  [ -f "$DMG" ] || { echo "✗ 找不到已挂载的资源来源，也找不到安装包 $DMG"; exit 1; }
++  # 先卸载残留的旧卷，避免多个版本同时挂着时选错
++  for vol in /Volumes/*; do
++    case "$(basename "$vol")" in
++      *Compositor*|*compositor*) echo "· 卸载残留卷 $(basename "$vol")"; hdiutil detach "$vol" -quiet 2>/dev/null || true ;;
++    esac
++  done
++  echo "· 挂载安装包镜像 $DMG"
++  hdiutil attach -nobrowse -quiet "$DMG"
++  sleep 1
++  DETECTED=$(find_src_app) || { echo "✗ 挂载后仍找不到源 .app"; exit 1; }
++fi
++SRC_APP="$DETECTED"
++[ -d "$SRC_APP" ] || { echo "✗ 资源来源不是目录: $SRC_APP"; exit 1; }
++
++# 装配前最后一道闸：没有中文本地化就停下来问清楚
++HAS_ZH=0
++[ -d "$SRC_APP/Contents/Resources/zh-Hans.lproj" ] && HAS_ZH=1
++echo "✓ 资源来源: $SRC_APP"
++if [ "$HAS_ZH" -eq 0 ]; then
++  echo "✗ 该资源包不含 zh-Hans.lproj，装配出来会是英文界面。"
++  echo "  若确认要英文，可加 ALLOW_NO_ZH=1 重跑；否则请指定正确的 SRC_APP，例如："
++  echo "    SRC_APP=\"/Volumes/Compositor 中文体验版/Compositor 中文体验版.app\" ./make-app.sh"
++  [ "${ALLOW_NO_ZH:-0}" = "1" ] || exit 1
++fi
++
++# ---------- 3. 拷贝包结构，只换可执行文件 ----------
++echo "· 拷贝应用包到 $DEST_APP"
++mkdir -p "$(dirname "$DEST_APP")"
++rm -rf "$DEST_APP"
++ditto "$SRC_APP" "$DEST_APP"
++
++echo "· 替换主可执行文件"
++cp "$BIN_LOCAL" "$DEST_APP/Contents/MacOS/Compositor"
++chmod +x "$DEST_APP/Contents/MacOS/Compositor"
++
++# ---------- 4. 改写 Info.plist ----------
++PLIST="$DEST_APP/Contents/Info.plist"
++echo "· 修改最低系统版本要求"
++OLD_MIN=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$PLIST" 2>/dev/null || echo "（无此键）")
++/usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 15.0" "$PLIST" 2>/dev/null \
++  || /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 15.0" "$PLIST"
++# 顺手清理只反映构建环境的字段，避免误导
++for k in DTSDKName DTSDKBuild DTXcode DTXcodeBuild DTPlatformVersion DTCompiler BuildMachineOSBuild; do
++  /usr/libexec/PlistBuddy -c "Delete :$k" "$PLIST" 2>/dev/null || true
++done
++NEW_MIN=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$PLIST")
++echo "   LSMinimumSystemVersion: $OLD_MIN → $NEW_MIN"
++
++# ---------- 5. 重新签名（本地临时签名，无需开发者证书）----------
++echo "· 移除旧签名并重新临时签名"
++rm -rf "$DEST_APP/Contents/_CodeSignature"
++codesign --force --deep --sign - "$DEST_APP" 2>&1 | sed 's/^/   /'
++
++# ---------- 6. 校验 ----------
++echo
++echo "════════════════════════════════════════════"
++echo " 校验"
++echo "════════════════════════════════════════════"
++EXE="$DEST_APP/Contents/MacOS/Compositor"
++echo "· 架构:        $(lipo -info "$EXE" 2>/dev/null | sed 's/.*: //')"
++echo "· 最低系统:    $(otool -l "$EXE" | grep -A3 LC_BUILD_VERSION | grep minos | head -1 | awk '{print $2}')"
++echo "· 资源检查:    $(ls "$DEST_APP/Contents/Resources/Assets.car" >/dev/null 2>&1 && echo '图像资源 ✓' || echo '图像资源 ✗')  $(ls -d "$DEST_APP/Contents/Resources/zh-Hans.lproj" >/dev/null 2>&1 && echo '中文本地化 ✓' || echo '中文本地化 ✗')"
++echo "· 签名:        $(codesign -dv "$DEST_APP" 2>&1 | grep -E 'Signature|Format' | head -2 | tr '\n' ' ')"
++if dyld_info -imports -arch x86_64 "$EXE" 2>/dev/null | grep -qE 'ToolbarSpacer|_TaskValueModifier2|sharedBackgroundVisibility'; then
++  echo "· 符号自检:    ✗ 仍含 macOS 26 专属符号"
++else
++  echo "· 符号自检:    ✓ 未引用 macOS 26 专属符号"
++fi
++
++echo
++echo "════════════════════════════════════════════"
++echo " 完成"
++echo "════════════════════════════════════════════"
++echo "应用位置: $DEST_APP"
++echo
++echo "启动方式一：open \"$DEST_APP\""
++echo "启动方式二：Finder 里到 ~/Applications 双击"
++echo
++echo "如果 macOS 提示「无法验证开发者」：右键点应用 → 打开 → 再点「打开」即可。"
+diff --git a/update.sh b/update.sh
+new file mode 100755
+index 0000000..fce28e4
+--- /dev/null
++++ b/update.sh
+@@ -0,0 +1,368 @@
++#!/bin/bash
++#
++# update.sh — 跟随上游汉化版更新，重建可在 macOS 15 上运行的 .app
++#
++# 背景：
++#   本工程是 Penny777btc/Compositor（汉化 fork）在 macOS 15 上的降级移植。
++#   fork 每发一个新 tag（zh-beta-vX.Y.Z），就可以用本脚本自动跟一遍：
++#     拉取 tag → 把移植补丁搬到新 tag 上 → 编译 → 装配 → 校验
++#
++# 用法：
++#   ./update.sh --check          # 只查有没有新版，不改动任何文件
++#   ./update.sh                  # 跟随更新（会先确认）
++#   ./update.sh --yes            # 跳过确认（适合自动化）
++#   ./update.sh --no-build       # 只把补丁搬到新 tag，不编译
++#
++# 环境要求：macOS + Command Line Tools（不需要 Xcode、不需要 Apple ID）
++#
++# 注意：macOS 自带 bash 是 3.2，本脚本刻意避开 bash 4 语法
++#      （无关联数组、无 ${var,,}、无 mapfile），空数组也不做直接展开
++#      （bash 3.2 下 `"${arr[@]}"` 遇 set -u 会报 unbound variable）。
++#
++set -euo pipefail
++cd "$(dirname "$0")"
++
++BRANCH="macos15-port"
++FORK="Penny777btc/Compositor"        # 汉化 fork：真正要跟的对象
++ORIG="robbietilton/Compositor"       # 原版上游：仅用于提示汉化进度落后多少
++DMG_DIR="/tmp/compdmg"
++PBX="Compositor.xcodeproj/project.pbxproj"
++
++# ASCII 引号在本脚本里是语法的一部分，说明文字里出现的全角引号不影响执行。
++
++CHECK_ONLY=0
++ASSUME_YES=0
++DO_BUILD=1
++for arg in "$@"; do
++  case "$arg" in
++    --check)    CHECK_ONLY=1 ;;
++    --yes|-y)   ASSUME_YES=1 ;;
++    --no-build) DO_BUILD=0 ;;
++    -h|--help)  sed -n '3,20p' "$0"; exit 0 ;;
++    *) echo "未知参数: $arg"; exit 2 ;;
++  esac
++done
++
++echo "════════════════════════════════════════════"
++echo " Compositor 跟随更新（macOS 15 兼容版）"
++echo "════════════════════════════════════════════"
++
++# ---------- 工具函数 ----------
++
++# 把 tag 变成可排序的键：zh-beta-v1.2.2.1 → 0001000200020001
++# 不用 sort -V，因为不保证所有 macOS 版本都有
++verkey() {
++  printf '%s' "$1" | sed -E 's/^zh-beta-v//' \
++    | awk -F. '{printf "%04d%04d%04d%04d", $1, $2, $3, (($4=="")?0:$4)}'
++}
++
++# 本地已有的最新汉化 tag
++newest_local_tag() {
++  git tag | while IFS= read -r t; do
++    printf '%s %s\n' "$(verkey "$t")" "$t"
++  done | sort | tail -1 | awk '{print $2}'
++}
++
++# 从 GitHub API 取某仓库最新 release 的 tag（失败返回空，不中断）
++latest_release_tag() {
++  curl -fsSL --max-time 20 "https://api.github.com/repos/$1/releases?per_page=1" 2>/dev/null \
++    | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 \
++    | sed -E 's/.*"([^"]+)"$/\1/' || true
++}
++
++# 取某 tag 的 DMG 资产下载地址
++release_dmg_url() {
++  curl -fsSL --max-time 30 "https://api.github.com/repos/$FORK/releases/tags/$1" 2>/dev/null \
++    | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+\.dmg"' | head -1 \
++    | sed -E 's/.*"(https:[^"]+)".*/\1/' || true
++}
++
++# 取某 tag 的 .sha256 资产下载地址
++release_sha_url() {
++  curl -fsSL --max-time 30 "https://api.github.com/repos/$FORK/releases/tags/$1" 2>/dev/null \
++    | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+\.sha256"' | head -1 \
++    | sed -E 's/.*"(https:[^"]+)".*/\1/' || true
++}
++
++# ---------- 0. 前置检查 ----------
++if [ ! -d .git ]; then echo "✗ 当前目录不是 git 仓库"; exit 1; fi
++CUR_BRANCH=$(git rev-parse --abbrev-ref HEAD)
++if [ "$CUR_BRANCH" != "$BRANCH" ]; then
++  echo "✗ 当前在分支 ${CUR_BRANCH}，期望 ${BRANCH}。"
++  echo "  先执行： git checkout $BRANCH"
++  exit 1
++fi
++if [ -n "$(git status --porcelain)" ]; then
++  echo "✗ 工作区有未提交改动，更新会覆盖它们。请先提交或 stash："
++  git status --short | sed 's/^/    /'
++  exit 1
++fi
++# 移植基线 = 从分支顶端往回走，第一个打了 zh-beta 标签的提交
++#
++# ⚠️ 不要用 `$BRANCH~1` 当基线。最初就是那么写的，等到往分支上补第二个
++# 提交（修 make-app.sh）之后，`~1` 就变成我们自己那个提交了，基线凭空错位。
++# 回走查标签对"分支上有几个提交"完全不敏感，是稳的。
++find_base_tag() {
++  for c in $(git rev-list "$BRANCH"); do
++    t=$(git tag --points-at "$c" | grep -E '^zh-beta-v' | head -1)
++    if [ -n "$t" ]; then printf '%s' "$t"; return 0; fi
++  done
++  return 1
++}
++
++PORT_TIP=$(git rev-parse "$BRANCH")
++BASE_TAG=$(find_base_tag) || {
++  echo "✗ 无法确定移植基线（在 $BRANCH 的历史里找不到任何 zh-beta 标签）"
++  exit 1
++}
++BASE_COMMIT=$(git rev-parse "$BASE_TAG^{commit}")
++N_PORT_COMMITS=$(git rev-list --count "$BASE_COMMIT..$PORT_TIP")
++
++echo "· 当前分支:   $BRANCH ($(git rev-parse --short "$PORT_TIP"), 含 $N_PORT_COMMITS 个移植提交)"
++echo "· 移植基线:   $(git rev-parse --short "$BASE_COMMIT")  $BASE_TAG"
++
++# ---------- 1. 拉取最新 tag ----------
++echo "· 拉取上游 tag…"
++git fetch origin --tags --depth=1 --quiet
++NEW=$(newest_local_tag)
++if [ -z "$NEW" ]; then echo "✗ 没找到任何 zh-beta 标签"; exit 1; fi
++echo "· 最新汉化版: $NEW"
++
++# 顺带提示汉化落后原版多少（不阻塞流程）
++ORIG_TAG=$(latest_release_tag "$ORIG")
++if [ -n "$ORIG_TAG" ]; then
++  echo "· 原版上游:   $ORIG_TAG （仅英文，仅供参考汉化进度）"
++fi
++
++NEW_COMMIT=$(git rev-parse "$NEW^{commit}")
++if [ "$BASE_COMMIT" = "$NEW_COMMIT" ]; then
++  echo
++  echo "✓ 已是最新（移植基线就是 ${NEW}），无需更新。"
++  # 顺手核对一下已装应用是否与当前基线的版本号一致
++  if [ -f "$HOME/Applications/Compositor.app/Contents/Info.plist" ]; then
++    CUR_V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
++              "$HOME/Applications/Compositor.app/Contents/Info.plist" 2>/dev/null || echo "?")
++    echo "  已安装应用版本: $CUR_V"
++    echo "  基线对应版本:   $(printf '%s' "$BASE_TAG" | sed -E 's/^zh-beta-v//')"
++  fi
++  exit 0
++fi
++
++NEW_VER=$(printf '%s' "$NEW" | sed -E 's/^zh-beta-v//')
++echo "· 可更新到:   $NEW  (v$NEW_VER)"
++
++if [ "$CHECK_ONLY" -eq 1 ]; then
++  echo
++  echo "（--check 模式，未做任何改动）"
++  echo "新版本相对当前基线的提交："
++  git log --oneline "$BASE_COMMIT..$NEW_COMMIT" 2>/dev/null | sed 's/^/    /' || echo "    （浅克隆，无法列出）"
++  echo
++  echo "继续更新请执行： ./update.sh"
++  exit 0
++fi
++
++if [ "$ASSUME_YES" -eq 0 ]; then
++  printf '确认更新到 %s 并重新编译？[y/N] ' "$NEW"
++  read -r ans || ans=""
++  case "$ans" in y|Y|yes|YES) ;; *) echo "已取消"; exit 0 ;; esac
++fi
++
++# ---------- 2. 备份当前分支 ----------
++STAMP=$(date +%Y%m%d-%H%M%S)
++BACKUP="backup/before-$NEW_VER-$STAMP"
++git branch "$BACKUP" "$BRANCH"
++echo "· 已备份当前分支到 $BACKUP"
++
++# ---------- 3. 下载新版本资源包（装配时要用新版资源，不能复用旧的）----------
++DMG_PATH="$DMG_DIR/compositor-$NEW_VER.dmg"
++mkdir -p "$DMG_DIR"
++if [ -f "$DMG_PATH" ]; then
++  echo "· 资源包已存在，跳过下载: $DMG_PATH"
++else
++  URL=$(release_dmg_url "$NEW")
++  if [ -z "$URL" ]; then
++    echo "✗ 没能从 release 里找到 $NEW 的 .dmg 资产。"
++    echo "  请手动下载后放到 $DMG_PATH 再重跑。"
++    echo "  发布页： https://github.com/$FORK/releases/tag/$NEW"
++    exit 1
++  fi
++  echo "· 下载 $URL"
++  curl -fL --max-time 300 --progress-bar -o "$DMG_PATH.part" "$URL" || {
++    echo "✗ 下载失败"; rm -f "$DMG_PATH.part"; exit 1; }
++  mv "$DMG_PATH.part" "$DMG_PATH"
++  echo "  已保存: $DMG_PATH  ($(ls -lh "$DMG_PATH" | awk '{print $5}'))"
++
++  # 校验（release 附带 .sha256，尽力而为）
++  SHA_URL=$(release_sha_url "$NEW")
++  if [ -n "$SHA_URL" ]; then
++    echo "· 校验 SHA-256…"
++    curl -fsSL --max-time 30 -o "$DMG_PATH.sha256" "$SHA_URL" || true
++    if [ -f "$DMG_PATH.sha256" ]; then
++      EXPECT=$(grep -oE '[0-9a-fA-F]{64}' "$DMG_PATH.sha256" | head -1 || true)
++      ACTUAL=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
++      if [ -n "$EXPECT" ] && [ "$EXPECT" = "$ACTUAL" ]; then
++        echo "  ✓ SHA-256 一致"
++      else
++        echo "  ⚠️ SHA-256 不一致（期望 ${EXPECT}，实际 ${ACTUAL}）"
++        printf '  仍要继续吗？[y/N] '
++        read -r a2 || a2=""
++        case "$a2" in y|Y) ;; *) echo "已取消"; exit 1 ;; esac
++      fi
++    fi
++  fi
++fi
++
++# ---------- 4. 把移植提交搬到新基线 ----------
++# 用 rebase --onto 而不是 cherry-pick 单个提交：
++# 分支上可能已经积累了多个移植提交（例如后来又修了 make-app.sh），
++# 只挑最后一个会把前面的改动全丢掉。--onto 会把 BASE_TAG..BRANCH 整个范围重放。
++# --empty=drop：若上游已包含同等改动导致某提交变空，直接丢弃而不是停下来。
++echo
++echo "· 把 $N_PORT_COMMITS 个移植提交搬到新基线 $NEW"
++set +e
++git rebase --onto "$NEW" "$BASE_TAG" --empty=drop 2>&1 | sed 's/^/    /'
++RB_STATUS=${PIPESTATUS[0]}
++set -e
++
++if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
++  UNMERGED=$(git diff --name-only --diff-filter=U)
++  echo
++  echo "✗ 移植提交在新版本上产生冲突，涉及以下文件："
++  printf '%s\n' "$UNMERGED" | sed 's/^/    /'
++  git rebase --abort 2>/dev/null || true
++  echo
++  echo "  已自动回滚。分支仍停在 $BRANCH ($(git rev-parse --short "$PORT_TIP"))，"
++  echo "  备份分支 $BACKUP 也保留着，什么都没丢。"
++  echo
++  echo "  这类冲突通常意味着上游改动了我们打过补丁的同一段代码。"
++  echo "  把上面的文件清单发给我，我来逐个手工合并。"
++  exit 1
++fi
++
++if [ "$RB_STATUS" -ne 0 ]; then
++  echo "✗ 搬移失败（git rebase 退出码 ${RB_STATUS}），未产生冲突但未能完成。"
++  echo "  当前状态请用 git status 查看，必要时回滚： git checkout -B $BRANCH $BACKUP"
++  exit 1
++fi
++
++NOW_PORT_COMMITS=$(git rev-list --count "$NEW_COMMIT..$BRANCH")
++echo "✓ 搬移完成，分支上现有 $NOW_PORT_COMMITS 个移植提交"
++if [ "$NOW_PORT_COMMITS" -eq 0 ]; then
++  echo "  ⚠️ 移植提交全被判为空提交丢掉了 —— 说明上游可能自己就做完了这些兼容改动。"
++  echo "     先别急，下面的事后修正与编译会验证这一点。"
++fi
++
++# ---------- 5. 事后修正：部署目标 + 新增 macOS 26 API 扫描 ----------
++FIXED=0
++N26=$(grep -c 'MACOSX_DEPLOYMENT_TARGET = 26' "$PBX" 2>/dev/null || true)
++if [ "$N26" -gt 0 ]; then
++  sed -i '' -E 's/MACOSX_DEPLOYMENT_TARGET = 26[0-9.]*;/MACOSX_DEPLOYMENT_TARGET = 15.0;/g' "$PBX"
++  echo "· pbxproj 里 $N26 处部署目标 26.x 已改回 15.0"
++  FIXED=1
++fi
++
++# 已知的 macOS 26 专属 API：这些是 objc_msgSend 动态派发的，
++# 不在导入符号表里，符号探针查不出来，只能在源码层扫。
++#
++# 名单里刻意不放 NSPopUpButton —— 它本身是 macOS 15 就有的老类型
++# （实测当前源码里有 12 处正常使用），只有它的 .borderShape 属性是新加的，
++# 把类型名放进来会造成大量误报，等于把告警废掉。
++TOKENS='ToolbarSpacer|sharedBackgroundVisibility|borderShape|glassEffect|TaskValueModifier2'
++
++# 关键：必须先剥掉行内注释再判断。
++# 我们自己写的移植说明注释里就带着 "ToolbarSpacer 是 macOS 26 新增 API"、
++# "原代码为 button.borderShape = .capsule" 这类字样，
++# 直接 grep 会把 5 处说明文字当成真调用，全是误报。
++# 局限：字符串字面量里的 // 会被误当注释起点，对这种场景够用。
++scan_code_hits() {
++  grep -rnE "\b($TOKENS)\b" Compositor --include='*.swift' 2>/dev/null \
++  | while IFS= read -r hit; do
++      code_only=$(printf '%s' "$hit" | sed 's://.*::')
++      if printf '%s' "$code_only" | grep -qE "\b($TOKENS)\b"; then
++        printf '%s\n' "$hit"
++      fi
++    done
++}
++
++RAW_N=$(grep -rnE "\b($TOKENS)\b" Compositor --include='*.swift' 2>/dev/null | wc -l | tr -d ' ')
++SCAN=$(scan_code_hits)
++CODE_N=$(printf '%s' "$SCAN" | grep -c . || true)
++[ -n "$SCAN" ] || CODE_N=0
++
++if [ "$CODE_N" -gt 0 ]; then
++  echo
++  echo "⚠️ 源码里出现 macOS 26 专属 API 的疑似真调用："
++  printf '%s\n' "$SCAN" | sed 's/^/    /'
++  echo "  → 这类 API 不在导入符号表里，符号探针查不出，只能靠这里拦。"
++  echo "  → 若编译报 'has no member' 或运行时崩溃，删掉对应调用即可（回落系统默认外观）。"
++  FIXED=1
++elif [ "$RAW_N" -gt 0 ]; then
++  echo "· API 扫描：命中 $RAW_N 处，但都只是注释里提到，不是真调用（已过滤）"
++fi
++if [ "$FIXED" -eq 0 ]; then
++  echo "· 部署目标与 API 扫描均无异常"
++fi
++
++# 让这些修正进入版本历史，下次 rebase 才不会互相打架
++if [ -n "$(git status --porcelain)" ]; then
++  git add -A
++  git commit -q -m "port: 跟随 $NEW 的事后修正（部署目标 / macOS 26 API）"
++  echo "· 已提交事后修正"
++fi
++
++# ---------- 6. 编译 ----------
++if [ "$DO_BUILD" -eq 0 ]; then
++  echo
++  echo "（--no-build 模式，补丁已搬移但未编译）"
++  echo "手动编译： ./build-clt.sh && ./make-app.sh"
++  exit 0
++fi
++
++echo
++echo "════════════════════════════════════════════"
++echo " 编译"
++echo "════════════════════════════════════════════"
++set +e
++./build-clt.sh
++BUILD_STATUS=$?
++set -e
++
++if [ $BUILD_STATUS -ne 0 ]; then
++  echo
++  echo "✗ 编译失败。"
++  echo "  新版源码里可能又引入了需要适配的写法。常见两类："
++  echo "    1) 'main actor-isolated … in a synchronous nonisolated context'"
++  echo "       → 上游用了 Swift 6.2 的 -default-isolation MainActor，命令行工具链不支持，"
++  echo "         需在报错处补 @MainActor（纯数据类型改 nonisolated）"
++  echo "    2) 'has no member …'"
++  echo "       → 又用了 macOS 26 新 API，删掉该调用即可"
++  echo
++  echo "  把编译报错贴给我，我来逐个修。当前状态可随时回滚："
++  echo "    git checkout -B $BRANCH $BACKUP"
++  exit 1
++fi
++
++# ---------- 7. 装配 ----------
++echo
++echo "════════════════════════════════════════════"
++echo " 装配应用包"
++echo "════════════════════════════════════════════"
++# 先卸掉可能残留的旧卷，确保 make-app.sh 只会看到新版本的资源
++for vol in /Volumes/*; do
++  case "$(basename "$vol")" in
++    *Compositor*|*compositor*) hdiutil detach "$vol" -quiet 2>/dev/null || true ;;
++  esac
++done
++
++BIN_LOCAL=/tmp/cbuild/Compositor DMG="$DMG_PATH" ./make-app.sh
++
++echo
++echo "════════════════════════════════════════════"
++echo " 更新完成"
++echo "════════════════════════════════════════════"
++echo "版本:     $NEW (v$NEW_VER)"
++echo "应用:     $HOME/Applications/Compositor.app"
++echo "备份分支: $BACKUP"
++echo
++echo "试试启动： open \"$HOME/Applications/Compositor.app\""
++echo "若要回滚： git checkout -B $BRANCH $BACKUP && ./build-clt.sh && ./make-app.sh"
+diff --git "a/\345\217\257\351\200\211-issue\350\215\211\347\250\277.md" "b/\345\217\257\351\200\211-issue\350\215\211\347\250\277.md"
+new file mode 100644
+index 0000000..6b1c5fa
+--- /dev/null
++++ "b/\345\217\257\351\200\211-issue\350\215\211\347\250\277.md"
+@@ -0,0 +1,49 @@
++# 可选：提交给上游的文字草稿
++
++> 说明：你没让我提，这份只是备着。哪天想提交了直接复制。
++> 注意 GitHub 的 issue 正文**不支持**用链接预填，所以只能手动粘贴。
++> 目标页：https://github.com/robbietilton/Compositor/issues/70
++
++---
++
++## 贴到 #70 的评论（英文，上游用英文）
++
++```
++Adding data to this, and one factual correction to the reasoning in #9.
++
++I measured the shipped v1.2.4 binary rather than reading the README. Of its 1738 imported
++symbols, 18 are missing on macOS 15.8 — 17 SwiftUI symbols plus `swift_coroFrameAlloc`.
++That is 99.0% already compatible. The SwiftUI ones are:
++
++  - ToolbarSpacer / SpacerSizing            (used at ContentView.swift:160, :173)
++  - ToolbarContent.sharedBackgroundVisibility(:)  (ContentView.swift:169)
++  - _TaskValueModifier2, _TagTraitWritingModifier, ForEach.create(_:content:)
++
++The last three come from `.task(id:)`, `.tag()` and `ForEach`, and disappear on their own
++if the deployment target is lowered — they are just the newer internal implementations the
++compiler picks when the target allows it. So the actual source changes needed are the five
++call sites in ContentView.swift, which is what #8 had already done.
++
++The correction: #9 says "every Mac that can run 15 can run 26". That isn't true. macOS 26
++supports only four Intel Macs — the 2019 16" MacBook Pro, the 2020 13" MBP with four
++Thunderbolt ports, the 2020 iMac, and the 2019 Mac Pro. A 2019 iMac (iMac19,1), a 2019
++MacBook Air, a 2018 Mac mini and a 2017 iMac Pro all run macOS 15 Sequoia today and have
++no supported path to 26. For those users there is no "macOS updates are free" option.
++
++I understand not wanting to constrain the main target. Would you consider shipping the
++legacy build as a second artifact instead — same source, built from a separate
++configuration with a lower deployment target? Then main stays on 26.5 and nobody has to
++carry `@available` fallbacks in the primary code path.
++```
++
++---
++
++## 如果更想开新 issue（不推荐，会被判重复）
++
++标题：
++
++```
++Ship a separate legacy build (macOS 15 deployment target)
++```
++
++正文可以用上面评论的开头两段 + 最后一段，并把中间的更正段落放在最前面。
+diff --git "a/\347\247\273\346\244\215\350\257\264\346\230\216.md" "b/\347\247\273\346\244\215\350\257\264\346\230\216.md"
+new file mode 100644
+index 0000000..d1369b5
+--- /dev/null
++++ "b/\347\247\273\346\244\215\350\257\264\346\230\216.md"
+@@ -0,0 +1,175 @@
++# Compositor 中文体验版 · macOS 15 移植说明
++
++> 目标：让这个原本要求 macOS 26.5 的应用，在你这台 **iMac19,1 / macOS 15.8** 上跑起来。
++>
++> 结果：**已实测构建成功并正常运行**（见 `运行截图-macOS15.png`，中文界面完整）。
++> 全程只用 macOS 自带的命令行工具（Command Line Tools），**不需要 Xcode，不需要 Apple ID**。
++
++---
++
++## 一、为什么先前那条路走不通，现在这条路为什么行
++
++| 路径 | 结论 |
++|---|---|
++| 直接装官方 DMG | ✗ 二进制 `minos = 26.5`，且 15 个符号在 macOS 15.8 上不存在，启动即崩 |
++| 用 Xcode 26.3 重编译 | ✗ 需要 Apple ID，而你的账号被 Apple 拒（「暂时不符合使用此应用程序的条件」） |
++| **用系统自带 CLT 编译** | **✓ 本次走通的路** |
++
++关键发现：**macOS 的 Command Line Tools 里已经有 `swiftc`、`clang` 和完整的 macOS SDK**，
++而这个工程**零远程依赖**（没有 SPM 包、没有 Sparkle），所以完全不需要 `xcodebuild` 那套构建系统。
++
++本机环境实测：
++
++```
++swiftc        6.1.2
++可用 SDK      MacOSX15.sdk / 15.2 / 15.4 / 15.5 / 26 / 26.2   ← 15.5 可用
++工程规模      115 个 .swift + 8 个 .c，共约 2.4 万行
++```
++
++---
++
++## 二、三步操作
++
++```bash
++cd "/Users/lee.fu/WorkBuddy/2026-09-23-10-29-48/Compositor-macos15"
++
++./build-clt.sh     # 1. 编译（约 2~3 分钟）
++./make-app.sh      # 2. 装配成 .app
++open ~/Applications/Compositor.app   # 3. 运行
++```
++
++如果 macOS 提示「无法验证开发者」：在 `~/Applications` 里**右键点应用 → 打开 → 再点「打开」**。
++
++`build-clt.sh` 会自动挑一个与 `swiftc` 版本匹配的 SDK（SDK 与编译器版本不匹配会直接报
++`this SDK is not supported by the compiler`，本机就踩过这个坑）。
++
++---
++
++## 三、源码改了什么（共 87 个文件，但真正的 API 改动只有 5 处）
++
++### 1) macOS 26 专有 API（5 处，纯外观）
++
++| 文件 | 原代码 | 处理 |
++|---|---|---|
++| `Compositor/ContentView.swift:160` | `ToolbarSpacer(.fixed, placement: .navigation)` | 换成固定宽度占位工具栏项 |
++| `Compositor/ContentView.swift:173` | `ToolbarSpacer(.flexible, placement: .navigation)` | 换成可伸缩占位项 |
++| `Compositor/ContentView.swift:169` | `.sharedBackgroundVisibility(.hidden)` | 删除（macOS 15 无等价 API） |
++| `Compositor/UI/TypeControls.swift:95` | `button.borderShape = .capsule` | 删除 |
++| `Compositor/UI/BlendModePicker.swift:15` | `button.borderShape = .capsule` | 删除 |
++
++`borderShape` 是 AppKit 属性，**已用 `respondsToSelector` 在本机实测确认不存在**。
++这两处删除后弹出按钮回落为系统默认边框外观。
++
++### 2) 并发隔离标注（约 80 个文件）
++
++这是本次移植**真正的技术难点**，值得记下来。
++
++原工程的构建设置里有：
++
++```
++SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor
++SWIFT_APPROACHABLE_CONCURRENCY = YES
++```
++
++意思是：**所有没显式标注隔离的声明，默认都在主线程上**。作者据此写了 150 多处 `nonisolated`
++来把需要后台执行的东西摘出去。
++
++问题在于：`-default-isolation MainActor` 是 **Swift 6.2 才有的开关**，而本机 CLT 的编译器是
++**6.1.2，完全不认这个参数**（我实测过 `-default-isolation` 和 `-Xfrontend -default-isolation`，
++都报 `unknown argument`）。
++
++结果就是：默认隔离从「MainActor」变成了「nonisolated」，凡是要在主线程上访问的状态立刻全线报错。
++
++处理办法是**把这个默认设置显式写进源码**，恢复原本的语义：
++
++- 顶层 / 嵌套的 `class`、视图类型、`@Observable` 模型 → 补 `@MainActor`
++- 纯数据类型（`struct`/`enum`，如 `ImageLayer`、`ShortcutChord`、`CanvasViewport`）→ 标 `nonisolated`
++  （它们只是数据，标了主线程隔离反而会让 `static let` 初始化报错）
++- `actor` → 不动（actor 自带隔离，加全局 actor 是编译错误）
++- 扩展 → **跟随被扩展类型的隔离**（这条最容易被忽略，一开始漏了导致连锁报错）
++- `MetalLayerEffects` → 改为 `nonisolated`（GPU 渲染器，无 UI 状态）
++
++> 顺带一提：`SwiftUI.ToolbarSpacer`、`SwiftUI._TaskValueModifier2` 等 10 个内部符号
++> **一行代码都不用改** —— 部署目标降到 15 之后，编译器会自动换成 macOS 15 那套实现。
++
++### 3) 部署目标
++
++`Compositor.xcodeproj/project.pbxproj` 里 4 处 `MACOSX_DEPLOYMENT_TARGET` 由 `26.5` 改为 `15.0`。
++（走命令行构建时，部署目标由 `build-clt.sh` 的 `-target x86_64-apple-macos15.0` 决定，
++这个改动只在你想用 Xcode 打开工程时才起作用。）
++
++---
++
++## 四、`make-app.sh` 的打包思路
++
++这是个能省掉一大堆麻烦的技巧：**官方 DMG 里的 `.app` 已经包含了编译好的资源**，直接复用：
++
++- `Assets.car`（1.8 MB，图像资源）
++- `zh-Hans.lproj/Localizable.strings`（98 KB，730 条词条的完整汉化）
++- `AppIcon.icns`、`en.lproj`
++
++所以脚本只做四件事：
++
++1. 拷贝官方 `.app` 的完整包结构
++2. **把 `Contents/MacOS/Compositor` 换成我们自己编译的那份**
++3. 改写 `Info.plist`：`LSMinimumSystemVersion` 由 `26.5` 改为 `15.0`
++4. 重新做本地临时签名（`codesign --sign -`，不需要开发者证书）
++
++这样连 `actool`（编译资源目录的工具，CLT 里没有）都不需要。
++
++---
++
++## 五、验证结果
++
++```
++导入符号          2147 个
++本机缺失          0 个      ← 官方原版缺失 15 个，必然启动崩溃
++架构              x86_64
++最低系统          15.0
++签名              adhoc
++实际运行          成功，中文界面完整（见截图）
++```
++
++---
++
++## 六、已知差异与残余风险
++
++**确定的外观差异（不影响功能）**
++
++1. 工具栏里的标签条会带上默认背景色（原版在 macOS 26 上是透明的）—— 因为
++   `sharedBackgroundVisibility` 在 macOS 15 上没有替代写法。
++2. 字体选择器、混合模式选择器的圆角变成系统默认样式（去掉了 macOS 26 的胶囊形）。
++
++**其他**
++
++- 二进制是 `-Onone`（不优化）编译的，体积 13 MB、启动略慢。想要更快可以改用 `-O` 重编
++  （把 `build-clt.sh` 里的 `-Onone` 换成 `-O`，多等几分钟）。
++- 工程里 8 个 C 文件（`Compositor/Rendering/*.c`）必须一起编译，且要带
++  `-import-objc-header Compositor/Compositor-Bridging-Header.h`，否则会报
++  `cannot find 'heal_coverage_bounds' in scope` 之类的错。
++- 应用是**本地临时签名**的，只在本机可用；要分发得用开发者证书重签并公证。
++
++---
++
++## 七、排错
++
++| 现象 | 原因与处理 |
++|---|---|
++| `this SDK is not supported by the compiler` | SDK 与 swiftc 版本不匹配。换 15.x 的 SDK（`build-clt.sh` 会自动挑） |
++| `cannot find 'xxx' in scope`（C 函数名） | 少编译了 C 文件或漏了桥接头 |
++| `main actor-isolated … in a synchronous nonisolated context` | 某处缺 `@MainActor`，按报错位置补上 |
++| `declaration can not have multiple global actor attributes` | `@MainActor` 写重了 |
++| 双击提示「无法验证开发者」 | 右键 → 打开 → 再点「打开」 |
++| 想跑单元测试 | 本流程不含测试目标（`CompositorTests` 未编译） |
++
++---
++
++## 八、另一条路（如果哪天想用 Xcode）
++
++`build.sh` 是留给 Xcode 路线的脚本。需要 **Xcode 26.0 ~ 26.3**：
++
++- 26.0–26.3：要求 macOS 15.6+，提供 Universal 版本，你的 15.8 刚好够
++- 26.4 起：要求 macOS 26.2+，且只提供 Apple Silicon 版本，装了也打不开
++
++但这条路要先解决 Apple ID 被拒的问题，而且下载量 11 GB —— 既然命令行路线已经跑通，
++除非要改代码后频繁调试，否则没必要走。
+diff --git "a/\350\277\220\350\241\214\346\210\252\345\233\276-macOS15.png" "b/\350\277\220\350\241\214\346\210\252\345\233\276-macOS15.png"
+new file mode 100644
+index 0000000..056d3ec
+Binary files /dev/null and "b/\350\277\220\350\241\214\346\210\252\345\233\276-macOS15.png" differ
