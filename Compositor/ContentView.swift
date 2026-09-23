@@ -189,6 +189,13 @@ struct ContentView: View {
                     Image(systemName: "minus.magnifyingglass")
                 }.help("Zoom out (⌘−)").disabled(session.document == nil)
             }
+            // 上游汉化版更新指示：无新版置灰不可点，有新版带红点可点。
+            // 状态来自 ForkUpdateChecker，跨启动持久化，所以下次开机不用等检查完成就能看到红点。
+            ToolbarItemGroup(placement: .primaryAction) {
+                if let updates = applicationDelegate?.forkUpdates {
+                    ForkUpdateButton(updates: updates)
+                }
+            }
         }
     }
 

@@ -1,0 +1,16 @@
+{
+  "_comment": "移植层新增文案的中文译文。应用复用官方 .app 里已编译的 Localizable.strings，而没有 Xcode 就没有 xcstringstool 可以重编；make-app.sh 会用 merge-strings.py 把这里缺失的键补进包内。刻意不写进 Compositor/Localizable.xcstrings —— 那个文件上游也在改，156KB 的整体 JSON 一旦双方都动就容易 rebase 冲突，而这些字符串只属于移植层新增的文件。",
+  "Checking for Updates…": "正在检查更新…",
+  "Choose": "选择",
+  "Choose Again": "重新选择",
+  "Choose the folder that holds update.sh and its .git checkout.": "请选择同时包含 update.sh 与 .git 的文件夹。",
+  "Couldn’t Start the Rebuild": "无法启动重新编译",
+  "Fork Update Available: %@": "汉化版有新版本：%@",
+  "Not Checked for Updates Yet": "尚未检查更新",
+  "Open Terminal and run update.sh in %@ yourself.": "请自行打开终端，在 %@ 中运行 update.sh。",
+  "Rebuild Locally…": "在本机重新编译…",
+  "That Folder Isn’t a Working Copy": "该文件夹不是工作副本",
+  "Update Check Failed. Click to Try Again.": "检查失败，点击重试。",
+  "You’re Up to Date (%@)": "已是最新版本（%@）",
+  "You’re using %@. The fork’s newest release is %@.\n\nThis build targets macOS 15, so the release download can’t run here — rebuilding it locally is how to update. Quit and reopen the app when the rebuild finishes.": "当前版本 %@，汉化版最新为 %@。\n\n本机版本是 macOS 15 适配版，上游发布包无法直接运行，需在本地重新编译才能更新。重新编译完成后请退出并重新打开本应用。"
+}

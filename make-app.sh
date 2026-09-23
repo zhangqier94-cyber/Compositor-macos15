@@ -126,6 +126,20 @@ echo "· 替换主可执行文件"
 cp "$BIN_LOCAL" "$DEST_APP/Contents/MacOS/Compositor"
 chmod +x "$DEST_APP/Contents/MacOS/Compositor"
 
+# ---------- 3.5 补齐移植层的中文文案 ----------
+# 应用复用官方 .app 里已编译好的 Localizable.strings —— 没有 Xcode 就没有 actool/xcstringstool
+# 能重编这份表。移植层新增的字符串（如工具栏更新按钮）因此要在这里补进去，
+# 否则中文界面里会夹着几个英文标签，而且不会有任何报错。
+STRINGS="$DEST_APP/Contents/Resources/zh-Hans.lproj/Localizable.strings"
+if [ -f port-localizations.json ] && [ -f "$STRINGS" ]; then
+  PY=$(command -v python3 || echo /usr/bin/python3)
+  if [ -x "$PY" ]; then
+    "$PY" merge-strings.py --bundle-strings "$STRINGS" 2>&1 | sed 's/^/   /'
+  else
+    echo "   ⚠️ 未找到 python3，跳过中文文案补齐（新增的更新按钮会显示英文提示）"
+  fi
+fi
+
 # ---------- 4. 改写 Info.plist ----------
 PLIST="$DEST_APP/Contents/Info.plist"
 echo "· 修改最低系统版本要求"

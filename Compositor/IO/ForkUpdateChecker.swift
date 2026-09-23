@@ -54,8 +54,7 @@ nonisolated enum ForkReleaseFeed {
         let size: Int64
     }
 
-    static func latestCandidate(in data: Data, newerThan current: ForkVersion,
-                                runningSystemVersion: ForkVersion) throws -> ForkReleaseCandidate? {
+    static func latestCandidate(in data: Data, newerThan current: ForkVersion) throws -> ForkReleaseCandidate? {
         guard data.count <= maximumResponseBytes else { throw ForkUpdateError.responseTooLarge }
         let releases = try JSONDecoder().decode([Release].self, from: data)
         return releases.compactMap { release -> ForkReleaseCandidate? in
@@ -65,15 +64,12 @@ nonisolated enum ForkReleaseFeed {
                   let page = trustedGitHubURL(release.html_url,
                     path: "/Penny777btc/Compositor/releases/tag/\(release.tag_name)") else { return nil }
 
-            // Only an explicit metadata line defines a requirement. Prose in release notes is not inferred.
-            // Maintainers can add `LSMinimumSystemVersion: 26.0` when a release raises the requirement.
-            let requirementLines = (release.body ?? "").split(whereSeparator: \.isNewline)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { $0.hasPrefix("LSMinimumSystemVersion:") }
-            for line in requirementLines {
-                let value = String(line.dropFirst("LSMinimumSystemVersion:".count)).trimmingCharacters(in: .whitespaces)
-                guard let minimum = ForkVersion(value), minimum <= runningSystemVersion else { return nil }
-            }
+            // 移植版这里刻意不检查发布说明里的 `LSMinimumSystemVersion`。那条规则是给「直接装官方 DMG」
+            // 的用户准备的，对本案正好相反：上游每个发布都写着 `LSMinimumSystemVersion: 26.5`，
+            // 而本机是 15.8，于是任何新版本都会被判为「装不了」——红点永远不亮，更新提醒彻底失效。
+            // 本机这份应用并非来自 DMG，而是从源码重编译、部署目标降到 15.0 的（见 update.sh 与
+            // macOS 26 API 扫描）。上游要求多少与源码能否降级编译无关，所以这里只比版本号。
+            // 真降不下来的情形由 update.sh 的编译环节兜住，不会漏。
 
             let assetName = "Compositor-ZH-Beta-\(version.rawValue).dmg"
             guard release.assets.contains(where: { asset in
@@ -94,6 +90,16 @@ nonisolated enum ForkReleaseFeed {
               components.percentEncodedPath == path else { return nil }
         return components.url
     }
+
+    /// A release page URL that came back from the API, re-checked after being persisted between
+    /// launches — a stored string is no more trustworthy than a fetched one.
+    static func releasePageURL(_ value: String) -> URL? {
+        guard let components = URLComponents(string: value),
+              components.percentEncodedPath.hasPrefix(releaseTagPath) else { return nil }
+        return trustedGitHubURL(value, path: components.percentEncodedPath)
+    }
+
+    static let releaseTagPath = "/Penny777btc/Compositor/releases/tag/"
 }
 
 nonisolated private enum ForkUpdateError: Error {
@@ -109,7 +115,7 @@ nonisolated private final class ForkUpdateRedirectPolicy: NSObject, URLSessionTa
 }
 
 private actor ForkReleaseLoader {
-    func load(current: ForkVersion, systemVersion: ForkVersion) async throws -> ForkReleaseCandidate? {
+    func load(current: ForkVersion) async throws -> ForkReleaseCandidate? {
         try Task.checkCancellation()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
@@ -135,8 +141,23 @@ private actor ForkReleaseLoader {
             guard data.count < ForkReleaseFeed.maximumResponseBytes else { throw ForkUpdateError.responseTooLarge }
             data.append(byte)
         }
-        return try ForkReleaseFeed.latestCandidate(in: data, newerThan: current, runningSystemVersion: systemVersion)
+        return try ForkReleaseFeed.latestCandidate(in: data, newerThan: current)
     }
+}
+
+/// What the toolbar's update button shows. Distinct from the alert the checker raises on its own:
+/// this is the state that outlives a single check and is restored on the next launch.
+nonisolated enum ForkUpdateStatus: Equatable, Sendable {
+    /// No check has completed yet — including the stretch right after launch, and while checks are switched off.
+    case unchecked
+    case checking
+    case current
+    case available(version: String)
+    /// Only ever means "the last attempt got no answer"; a known newer version is never replaced by this.
+    case failed
+
+    var isAvailable: Bool { if case .available = self { return true }; return false }
+    var availableVersion: String? { if case .available(let version) = self { return version }; return nil }
 }
 
 /// Checks this fork's releases and opens their release page only when requested. It never downloads or installs code.
@@ -154,6 +175,12 @@ final class ForkUpdateChecker {
         }
     }
     private(set) var isChecking = false
+
+    /// Drives the toolbar button. Persisted separately from the alert bookkeeping, so a known update
+    /// still shows its dot on the next launch instead of waiting for the first check to come back.
+    private(set) var status: ForkUpdateStatus = .unchecked
+    private(set) var availableVersion: String?
+    private(set) var availableReleaseURL: URL?
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let currentVersion: String
@@ -173,6 +200,8 @@ final class ForkUpdateChecker {
     private static let enabledKey = "forkUpdates.automaticallyChecks"
     private static let lastCheckKey = "forkUpdates.lastCheck"
     private static let notifiedVersionKey = "forkUpdates.lastNotifiedVersion"
+    private static let availableVersionKey = "forkUpdates.availableVersion"
+    private static let availableURLKey = "forkUpdates.availableReleaseURL"
     private static let interval: TimeInterval = 24 * 60 * 60
 
     private enum Outcome {
@@ -192,6 +221,36 @@ final class ForkUpdateChecker {
         self.currentVersion = currentVersion
         self.canPresent = canPresent
         automaticallyChecksForUpdates = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
+        restorePersistedAvailability()
+    }
+
+    /// Puts the button back where the last session left it. A stored version is only shown once it
+    /// still beats this build — a downgrade or a reinstall must not leave a permanent red dot.
+    private func restorePersistedAvailability() {
+        guard let stored = defaults.string(forKey: Self.availableVersionKey),
+              let version = ForkVersion(stored),
+              let current = ForkVersion(currentVersion), version > current,
+              let raw = defaults.string(forKey: Self.availableURLKey),
+              let url = ForkReleaseFeed.releasePageURL(raw) else { return }
+        availableVersion = version.rawValue
+        availableReleaseURL = url
+        status = .available(version: version.rawValue)
+    }
+
+    private func recordAvailable(_ release: ForkReleaseCandidate) {
+        availableVersion = release.version.rawValue
+        availableReleaseURL = release.releaseURL
+        defaults.set(release.version.rawValue, forKey: Self.availableVersionKey)
+        defaults.set(release.releaseURL.absoluteString, forKey: Self.availableURLKey)
+        status = .available(version: release.version.rawValue)
+    }
+
+    private func clearAvailable() {
+        availableVersion = nil
+        availableReleaseURL = nil
+        defaults.removeObject(forKey: Self.availableVersionKey)
+        defaults.removeObject(forKey: Self.availableURLKey)
+        status = .current
     }
 
     func start() {
@@ -248,6 +307,7 @@ final class ForkUpdateChecker {
         if manual { cancelPresentation() }
         wantsManualResult = manual
         isChecking = true
+        status = .checking
         defaults.set(Date(), forKey: Self.lastCheckKey)
         let id = UUID()
         requestID = id
@@ -256,9 +316,7 @@ final class ForkUpdateChecker {
             let outcome: Outcome
             do {
                 guard let current = ForkVersion(self.currentVersion) else { throw ForkUpdateError.invalidCurrentVersion }
-                let os = ProcessInfo.processInfo.operatingSystemVersion
-                let systemVersion = ForkVersion("\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)")!
-                if let release = try await self.loader.load(current: current, systemVersion: systemVersion) {
+                if let release = try await self.loader.load(current: current) {
                     outcome = .available(release)
                 } else {
                     outcome = .current
@@ -272,6 +330,13 @@ final class ForkUpdateChecker {
             self.requestID = nil
             self.wantsManualResult = false
             self.isChecking = false
+            switch outcome {
+            case .available(let release): self.recordAvailable(release)
+            case .current: self.clearAvailable()
+            // A re-check that merely failed to reach GitHub must not erase a version already known:
+            // the dot would blink off and only come back on the next successful check.
+            case .failed: if self.availableVersion == nil { self.status = .failed }
+            }
             if !manual {
                 guard self.automaticallyChecksForUpdates, case .available(let release) = outcome else { return }
                 if let previous = self.defaults.string(forKey: Self.notifiedVersionKey).flatMap(ForkVersion.init),
@@ -288,6 +353,10 @@ final class ForkUpdateChecker {
         requestID = nil
         wantsManualResult = false
         isChecking = false
+        // A cancelled check would otherwise strand the button on its spinner.
+        if case .checking = status {
+            status = availableVersion.map { ForkUpdateStatus.available(version: $0) } ?? .unchecked
+        }
     }
 
     private func cancelPresentation() {
