@@ -2,7 +2,7 @@ import Foundation
 import CoreGraphics
 
 /// Document: pixels with top-left origin. View: AppKit points. Zoom 1 means actual display pixels.
-struct CanvasViewport: Equatable {
+nonisolated struct CanvasViewport: Equatable {
     var viewSize: CGSize = .zero
     var backingScale: CGFloat = 1
     private(set) var zoom: CGFloat = 1

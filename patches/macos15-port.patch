@@ -1,0 +1,1926 @@
+diff --git a/Compositor.xcodeproj/project.pbxproj b/Compositor.xcodeproj/project.pbxproj
+index 451950a..ddd3363 100644
+--- a/Compositor.xcodeproj/project.pbxproj
++++ b/Compositor.xcodeproj/project.pbxproj
+@@ -326,7 +326,7 @@
+ 				GCC_WARN_UNUSED_FUNCTION = YES;
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MACOSX_DEPLOYMENT_TARGET = 26.5;
++				MACOSX_DEPLOYMENT_TARGET = 15.0;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -384,7 +384,7 @@
+ 				GCC_WARN_UNUSED_FUNCTION = YES;
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MACOSX_DEPLOYMENT_TARGET = 26.5;
++				MACOSX_DEPLOYMENT_TARGET = 15.0;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				SDKROOT = macosx;
+@@ -475,7 +475,7 @@
+ 				CURRENT_PROJECT_VERSION = 17;
+ 				DEVELOPMENT_TEAM = 3E4X3B9Z9T;
+ 				GENERATE_INFOPLIST_FILE = YES;
+-				MACOSX_DEPLOYMENT_TARGET = 26.5;
++				MACOSX_DEPLOYMENT_TARGET = 15.0;
+ 				MARKETING_VERSION = 1.2.2;
+ 				PRODUCT_BUNDLE_IDENTIFIER = com.wonderassembly.compositor.tests;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+@@ -496,7 +496,7 @@
+ 				CURRENT_PROJECT_VERSION = 17;
+ 				DEVELOPMENT_TEAM = 3E4X3B9Z9T;
+ 				GENERATE_INFOPLIST_FILE = YES;
+-				MACOSX_DEPLOYMENT_TARGET = 26.5;
++				MACOSX_DEPLOYMENT_TARGET = 15.0;
+ 				MARKETING_VERSION = 1.2.2;
+ 				PRODUCT_BUNDLE_IDENTIFIER = com.wonderassembly.compositor.tests;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+diff --git a/Compositor/CompositorApp.swift b/Compositor/CompositorApp.swift
+index 453aa4b..cc61895 100644
+--- a/Compositor/CompositorApp.swift
++++ b/Compositor/CompositorApp.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ @main
+ struct CompositorApp: App {
+     @NSApplicationDelegateAdaptor(CompositorApplicationDelegate.self) private var applicationDelegate
+diff --git a/Compositor/ContentView.swift b/Compositor/ContentView.swift
+index e3df14a..f50985f 100644
+--- a/Compositor/ContentView.swift
++++ b/Compositor/ContentView.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ import UniformTypeIdentifiers
+ 
++@MainActor
+ struct ContentView: View {
+     /// The Layers panel's width, remembered across launches.
+     @AppStorage("layersPanelWidth") private var layersPanelWidth = 252.0
+@@ -157,7 +158,8 @@ struct ContentView: View {
+                     .disabled(session.isImporting || session.showsBusy || session.levels != nil)
+                     .modifier(NewProjectDropTarget(workspace: applicationDelegate?.workspace))
+             }
+-            ToolbarSpacer(.fixed, placement: .navigation)
++            // macOS 15 兼容：ToolbarSpacer 是 macOS 26 新增 API，改用固定宽度的占位工具栏项
++            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 8, height: 1) }
+             if let workspace = applicationDelegate?.workspace {
+                 ToolbarItem(placement: .navigation) {
+                     ProjectTabStrip(workspace: workspace)
+@@ -166,11 +168,13 @@ struct ContentView: View {
+                         // strip scrolls instead.
+                         .frame(width: max(200, windowWidth - 352), height: 34, alignment: .center)
+                 }
+-                .sharedBackgroundVisibility(.hidden)
++                // macOS 15 兼容：sharedBackgroundVisibility 是 macOS 26 新增 API，此处省略。
++                // 副作用：标签条会带上工具栏默认背景（原版在 macOS 26 上为透明），属纯外观差异。
+             }
+             // Absorb all remaining navigation-toolbar width before the zoom controls.
+             // Without this spacer, the growing tab strip pushes the primary actions left.
+-            ToolbarSpacer(.flexible, placement: .navigation)
++            // macOS 15 兼容：ToolbarSpacer 是 macOS 26 新增 API，改用可伸缩占位项
++            ToolbarItem(placement: .navigation) { Spacer() }
+             ToolbarItemGroup(placement: .primaryAction) {
+                 Button("Fit") { session.fit() }.help("Fit canvas in window (⌘0)")
+                     .accessibilityIdentifier("fitCanvas").disabled(session.document == nil)
+@@ -382,6 +386,7 @@ struct ContentView: View {
+ }
+ 
+ /// A panel's divider that resizes the panel to its right: drag left to widen, right to narrow, within `range`.
++@MainActor
+ private struct PanelResizeEdge: View {
+     @Binding var width: Double
+     let range: ClosedRange<Double>
+@@ -403,12 +408,14 @@ private struct PanelResizeEdge: View {
+     }
+ }
+ 
++@MainActor
+ extension View {
+     /// Bordered buttons and pop-up menus drawn as capsules throughout the app. Borderless and plain buttons (the tool
+     /// rail, the Layers panel footer) have no border to shape, so they're unaffected.
+     func roundedControls() -> some View { buttonBorderShape(.capsule) }
+ }
+ 
++@MainActor
+ extension View {
+     /// Return or Escape in a property field gives up its focus and hands it back to the canvas, so a tool's key
+     /// works straight away instead of typing into the field.
+@@ -451,6 +458,7 @@ extension View {
+ 
+ /// Up and Down nudge the value in a focused property field, Shift by ten times as much — a text field takes the
+ /// arrow keys for its insertion point, so they are caught while it holds focus.
++@MainActor
+ private struct ArrowStepping: ViewModifier {
+     let step: Double
+     let value: () -> Double
+@@ -474,6 +482,7 @@ private struct ArrowStepping: ViewModifier {
+     }
+ }
+ 
++@MainActor
+ extension View {
+     /// Up and Down step this field's value; each field's own binding keeps it in range.
+     func arrowSteps(_ step: Double = 1, value: @escaping () -> Double, change: @escaping (Double) -> Void) -> some View {
+@@ -495,6 +504,7 @@ extension View {
+ }
+ 
+ /// Reports the width it is laid out at. Kept out of the editor's body, whose type-checking is already near its limit.
++@MainActor
+ private struct WidthReader: ViewModifier {
+     @Binding var width: CGFloat
+     func body(content: Content) -> some View {
+diff --git a/Compositor/Document/AdjustmentEditing.swift b/Compositor/Document/AdjustmentEditing.swift
+index 9712371..1a1d294 100644
+--- a/Compositor/Document/AdjustmentEditing.swift
++++ b/Compositor/Document/AdjustmentEditing.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ 
++@MainActor
+ extension EditorSession {
+     /// Uses the ordinary color editors, but sends their changes to layer metadata.
+     /// The source is only for the histogram and sampling; it never replaces layer pixels.
+diff --git a/Compositor/Document/BlurTool.swift b/Compositor/Document/BlurTool.swift
+index 2dfb16e..45f5616 100644
+--- a/Compositor/Document/BlurTool.swift
++++ b/Compositor/Document/BlurTool.swift
+@@ -1,6 +1,7 @@
+ import AppKit
+ import CoreImage
+ 
++@MainActor
+ extension EditorSession {
+     /// What a Blur stroke paints: the active layer (or, with `mask`, its mask) as the canvas shows it, at document
+     /// size, softened by an amount that follows the brush size. It is taken when the stroke starts, so going over an
+diff --git a/Compositor/Document/BrushStroke.swift b/Compositor/Document/BrushStroke.swift
+index b52ecb0..3af268b 100644
+--- a/Compositor/Document/BrushStroke.swift
++++ b/Compositor/Document/BrushStroke.swift
+@@ -88,6 +88,7 @@ nonisolated enum BrushRaster {
+ 
+ /// Only touched 256px tiles allocate writable pixels. Snapshots copy at most
+ /// those tiles, never the entire layer on a mouse-move event.
++@MainActor
+ final class BrushStroke {
+     let layer: ImageLayer
+     let isMask: Bool
+@@ -130,7 +131,7 @@ final class BrushStroke {
+     private var tailBackup: [Int: CGImage?] = [:]
+     private var distanceToNext: CGFloat = 0
+     private(set) var dirtyDocumentRect: CGRect?
+-    private struct Tile { let rect: CGRect; let context: CGContext; var image: CGImage?; let base: CGImage? }
++    nonisolated private struct Tile { let rect: CGRect; let context: CGContext; var image: CGImage?; let base: CGImage? }
+     private var tiles: [Int: Tile] = [:]
+     private let gpu: MetalBrushCoverage?
+     private var gpuTiles: [Int: MetalBrushCoverage.Tile] = [:]
+diff --git a/Compositor/Document/CloneStamp.swift b/Compositor/Document/CloneStamp.swift
+index 14647c6..995fa37 100644
+--- a/Compositor/Document/CloneStamp.swift
++++ b/Compositor/Document/CloneStamp.swift
+@@ -9,6 +9,7 @@ nonisolated struct CloneSettings: Equatable, Sendable {
+     var sampleAllLayers = false
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Option-click: where Clone Stamp copies from. A new source starts a new alignment.
+     func setCloneSource(_ point: CGPoint) {
+diff --git a/Compositor/Document/ColorPalette.swift b/Compositor/Document/ColorPalette.swift
+index 9993557..aa8c075 100644
+--- a/Compositor/Document/ColorPalette.swift
++++ b/Compositor/Document/ColorPalette.swift
+@@ -17,6 +17,7 @@ nonisolated struct PaletteColor: Equatable, Sendable {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     var foregroundColor: PaletteColor {
+         get { PaletteColor(red: brushSettings.red, green: brushSettings.green, blue: brushSettings.blue) }
+@@ -159,7 +160,7 @@ extension EditorSession {
+ }
+ 
+ /// What the open color picker edits: a palette swatch, or one end of the Gradient Map being edited.
+-enum ColorPickerTarget: Equatable {
++nonisolated enum ColorPickerTarget: Equatable {
+     case palette(background: Bool)
+     /// A layer effect's own color.
+     case effect(kind: LayerEffectKind)
+@@ -176,6 +177,7 @@ enum ColorPickerTarget: Equatable {
+ }
+ 
+ /// The open color picker's working color. Nothing is written to the palette until OK.
++@MainActor
+ @Observable
+ final class ColorPickerState {
+     let target: ColorPickerTarget
+@@ -195,7 +197,7 @@ final class ColorPickerState {
+ 
+ /// Hue in degrees, saturation and brightness 0...1. Kept as the picker's source of
+ /// truth so hue survives dragging through grays and black.
+-struct PickerHSB: Equatable {
++nonisolated struct PickerHSB: Equatable {
+     var hue: CGFloat
+     var saturation: CGFloat
+     var brightness: CGFloat
+diff --git a/Compositor/Document/Crop.swift b/Compositor/Document/Crop.swift
+index 2c7d8d6..a8c549e 100644
+--- a/Compositor/Document/Crop.swift
++++ b/Compositor/Document/Crop.swift
+@@ -26,8 +26,8 @@ nonisolated enum CropGeometry {
+     }
+ }
+ 
+-struct CropDrag {
+-    enum Mode { case create, move, resize(Int) }
++nonisolated struct CropDrag {
++    nonisolated enum Mode { case create, move, resize(Int) }
+     let start: CGPoint
+     let original: CGRect
+     let mode: Mode
+@@ -111,6 +111,7 @@ nonisolated struct CropSnap {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// What a moving layer snaps to: View > Snap To targets, including the canvas and other layers by default.
+     func transformSnapTargets(excluding moving: Set<UUID>) -> (xs: [CGFloat], ys: [CGFloat]) {
+diff --git a/Compositor/Document/Distort.swift b/Compositor/Document/Distort.swift
+index 86d3481..06a16b8 100644
+--- a/Compositor/Document/Distort.swift
++++ b/Compositor/Document/Distort.swift
+@@ -240,13 +240,13 @@ nonisolated enum DistortWarp {
+ 
+ /// The canvas's last warped preview, reused while the distortion and layer are unchanged.
+ /// The last effects image warped for a distortion, so the corners can keep moving without redoing it.
+-struct DistortEffectsCache {
++nonisolated struct DistortEffectsCache {
+     let corners: [CGPoint]
+     let image: CGImage
+     let result: (image: CGImage, transform: LayerTransform)?
+ }
+ 
+-struct DistortPreviewCache {
++nonisolated struct DistortPreviewCache {
+     let corners: [CGPoint]
+     let draft: LayerTransform
+     let image: CGImage
+@@ -254,6 +254,7 @@ struct DistortPreviewCache {
+     let result: (image: CGImage, mask: CGImage?, transform: LayerTransform)?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Cmd-drag on a transform handle: the corners start moving freely. Each distortion resamples
+     /// the pixels, so the edit then waits for Apply rather than applying on mouse-up.
+diff --git a/Compositor/Document/DocumentHistory.swift b/Compositor/Document/DocumentHistory.swift
+index 43512e0..7fde3ab 100644
+--- a/Compositor/Document/DocumentHistory.swift
++++ b/Compositor/Document/DocumentHistory.swift
+@@ -3,14 +3,15 @@ import CoreGraphics
+ import Observation
+ 
+ /// Value snapshots share immutable CGImages; no pixel copies for layer edits.
++@MainActor
+ @Observable
+ final class DocumentHistory {
+-    struct Snapshot {
++    nonisolated struct Snapshot {
+         let document: CanvasDocument?
+         let activeLayerID: UUID?
+         let revision: UUID
+     }
+-    private struct Entry {
++    nonisolated private struct Entry {
+         let name: String
+         let before: Snapshot
+         let after: Snapshot
+diff --git a/Compositor/Document/EditorSession+Brush.swift b/Compositor/Document/EditorSession+Brush.swift
+index 6103be0..564e7f6 100644
+--- a/Compositor/Document/EditorSession+Brush.swift
++++ b/Compositor/Document/EditorSession+Brush.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ 
++@MainActor
+ extension EditorSession {
+     /// An explicitly empty selection leaves nothing paintable, so painting never starts.
+     var canPaint: Bool {
+diff --git a/Compositor/Document/EditorSession+Projects.swift b/Compositor/Document/EditorSession+Projects.swift
+index 019ad01..6d2e4f7 100644
+--- a/Compositor/Document/EditorSession+Projects.swift
++++ b/Compositor/Document/EditorSession+Projects.swift
+@@ -1,5 +1,6 @@
+ import Foundation
+ 
++@MainActor
+ extension EditorSession {
+     func projectSnapshot() -> ProjectSnapshot? {
+         guard let document else { return nil }
+diff --git a/Compositor/Document/EditorSession.swift b/Compositor/Document/EditorSession.swift
+index ec033ff..d53680b 100644
+--- a/Compositor/Document/EditorSession.swift
++++ b/Compositor/Document/EditorSession.swift
+@@ -1,6 +1,6 @@
+ import SwiftUI
+ 
+-struct ImageLayer: Identifiable, Equatable {
++nonisolated struct ImageLayer: Identifiable, Equatable {
+     static func == (lhs: Self, rhs: Self) -> Bool {
+         lhs.id == rhs.id && lhs.name == rhs.name && lhs.isVisible == rhs.isVisible && lhs.transform == rhs.transform
+             && lhs.asset?.image === rhs.asset?.image && lhs.parentID == rhs.parentID && lhs.isGroup == rhs.isGroup && lhs.opacity == rhs.opacity && lhs.blendMode == rhs.blendMode && lhs.mask == rhs.mask && lhs.maskSourceID == rhs.maskSourceID && lhs.adjustment == rhs.adjustment && lhs.shape == rhs.shape && lhs.text == rhs.text && lhs.effects == rhs.effects
+@@ -58,7 +58,7 @@ struct ImageLayer: Identifiable, Equatable {
+     }
+ }
+ 
+-struct CanvasDocument: Equatable {
++nonisolated struct CanvasDocument: Equatable {
+     let id: UUID
+     let width: Int
+     let height: Int
+@@ -86,7 +86,7 @@ struct CanvasDocument: Equatable {
+     }
+ }
+ 
+-enum NavigationTool: String, CaseIterable {
++nonisolated enum NavigationTool: String, CaseIterable {
+     case move, marquee, lasso, wand, crop, brush, spotHealing, cloneStamp, blur, gradient, shape, type, eyedropper, hand, zoom
+     /// No tool (A): nothing in the tool rail is selected and canvas clicks do nothing.
+     case idle
+@@ -98,6 +98,7 @@ enum NavigationTool: String, CaseIterable {
+     var label: String { L10n.text(self == .type ? "Type (T)" : self == .eyedropper ? "Eyedropper (I)" : self == .marquee ? "Marquee (M)" : self == .lasso ? "Lasso (L)" : self == .wand ? "Magic (W) · Tab switches Wand and Object" : self == .brush ? "Brush (B) · Eraser (E)" : self == .spotHealing ? "Spot Healing Brush (J)" : self == .cloneStamp ? "Clone Stamp (S) · Option-click sets the source" : self == .blur ? "Smear (R)" : self == .gradient ? "Gradient (G)" : self == .shape ? "Shape (U) · Shift-U switches Rectangle/Ellipse" : self == .crop ? "Crop (C)" : self == .move ? "Move / Transform (V)" : self == .hand ? "Hand (H)" : "Zoom (Z)") }
+ }
+ 
++@MainActor
+ @Observable
+ final class EditorSession {
+     var skipsInitialClipboardCanvasSize = false
+@@ -710,7 +711,7 @@ final class EditorSession {
+         document?.layers.swapAt(a, b)
+         endEdit()
+     }
+-    private struct ImportRequest {
++    nonisolated private struct ImportRequest {
+         let files: [(url: URL, scoped: Bool)]
+         let point: CGPoint?
+         let completion: CheckedContinuation<Void, Never>
+diff --git a/Compositor/Document/Filters.swift b/Compositor/Document/Filters.swift
+index 1b30b54..0072caa 100644
+--- a/Compositor/Document/Filters.swift
++++ b/Compositor/Document/Filters.swift
+@@ -180,6 +180,7 @@ nonisolated enum PixelFilter {
+     }
+ }
+ 
++@MainActor
+ @Observable
+ final class FilterEdit {
+     let kind: FilterKind
+@@ -304,6 +305,7 @@ final class FilterEdit {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     var canContentAwareFill: Bool {
+         canAdjustColors && !isMaskSelected && selection?.isEmpty == false && filterEdit == nil && hueSaturation == nil
+diff --git a/Compositor/Document/FloatingSelection.swift b/Compositor/Document/FloatingSelection.swift
+index e3970cd..2e22e07 100644
+--- a/Compositor/Document/FloatingSelection.swift
++++ b/Compositor/Document/FloatingSelection.swift
+@@ -3,7 +3,7 @@ import AppKit
+ /// Cmd-T with a selection: the selected pixels float on a temporary layer, edited with the
+ /// normal transform handles, then merge back into their layer. The whole thing is one
+ /// "Transform Selection" undo step; Escape restores the document exactly.
+-struct FloatingTransform {
++nonisolated struct FloatingTransform {
+     let sourceID: UUID
+     let before: CanvasDocument
+     let beforeActive: UUID?
+@@ -11,6 +11,7 @@ struct FloatingTransform {
+     let pixelSize: CGSize
+ }
+ 
++@MainActor
+ extension EditorSession {
+     var canTransformSelection: Bool {
+         guard transformEdit == nil, canEditPixels, !isMaskSelected, let selection, !selection.isEmpty,
+diff --git a/Compositor/Document/Gradient.swift b/Compositor/Document/Gradient.swift
+index 6c97d32..9365cb5 100644
+--- a/Compositor/Document/Gradient.swift
++++ b/Compositor/Document/Gradient.swift
+@@ -20,6 +20,7 @@ nonisolated struct GradientSettings: Equatable, Sendable {
+ 
+ /// An uncommitted gradient on one layer or mask. Endpoints are document pixels;
+ /// the raster preview lives in `raster` and never touches the document until commit.
++@MainActor
+ final class GradientEdit {
+     let raster: BrushStroke
+     var start: CGPoint
+@@ -32,6 +33,7 @@ final class GradientEdit {
+     var hasLine: Bool { hypot(end.x - start.x, end.y - start.y) >= 0.5 }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func beginGradient(at point: CGPoint) {
+         guard tool == .gradient, canPaint || gradientEdit != nil, let layer = activeLayer else { return }
+diff --git a/Compositor/Document/Guides.swift b/Compositor/Document/Guides.swift
+index 1260c7b..0409e82 100644
+--- a/Compositor/Document/Guides.swift
++++ b/Compositor/Document/Guides.swift
+@@ -32,7 +32,7 @@ nonisolated struct CanvasGuide: Codable, Equatable, Sendable, Hashable {
+ }
+ 
+ /// Non-printing layout grid: a major line every 64 px, eight subdivisions (every 8 px).
+-enum LayoutGrid {
++nonisolated enum LayoutGrid {
+     static let spacing: CGFloat = 64
+     static let subdivisions = 8
+     static var step: CGFloat { spacing / CGFloat(subdivisions) }
+@@ -55,7 +55,7 @@ enum LayoutGrid {
+ }
+ 
+ /// In-progress create or move; the document is updated only when the drag finishes.
+-struct GuideDrag: Equatable {
++nonisolated struct GuideDrag: Equatable {
+     var id: UUID
+     var axis: CanvasGuide.Axis
+     var position: Double
+@@ -63,6 +63,7 @@ struct GuideDrag: Equatable {
+     var original: Double?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Cyan, as Photoshop's default guide color.
+     static let guideColor = CGColor(srgbRed: 0, green: 1, blue: 1, alpha: 0.9)
+diff --git a/Compositor/Document/HueSaturation.swift b/Compositor/Document/HueSaturation.swift
+index 77a53a6..e01d7df 100644
+--- a/Compositor/Document/HueSaturation.swift
++++ b/Compositor/Document/HueSaturation.swift
+@@ -153,7 +153,7 @@ nonisolated enum HueSampleMode: String, CaseIterable, Sendable {
+ }
+ 
+ /// A targeted-adjustment drag in progress.
+-struct HueTargetDrag {
++nonisolated struct HueTargetDrag {
+     let range: ColorRange
+     let hue: Double
+     let saturation: Double
+@@ -364,6 +364,7 @@ nonisolated enum HueSaturationFilter {
+ /// One open Hue/Saturation dialog. Previews render from a downscaled copy of the original
+ /// and are drawn straight on the canvas, so dragging stays responsive and the document is
+ /// untouched until OK.
++@MainActor
+ @Observable
+ final class HueSaturationEdit {
+     let layerID: UUID
+@@ -408,6 +409,7 @@ final class HueSaturationEdit {
+     func setPreview(_ image: CGImage?) { preparedPreview = image }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Color adjustments need a visible image layer (not a mask) and a non-empty selection
+     /// if there is one; a pending gradient or transform is applied first.
+diff --git a/Compositor/Document/LayerAdjustment.swift b/Compositor/Document/LayerAdjustment.swift
+index 0a988c2..07efe93 100644
+--- a/Compositor/Document/LayerAdjustment.swift
++++ b/Compositor/Document/LayerAdjustment.swift
+@@ -108,6 +108,7 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func addAdjustment(_ kind: AdjustmentKind) {
+         guard canEditLayers, let document, document.layers.count < 10_000 else { return }
+diff --git a/Compositor/Document/LayerAppearance.swift b/Compositor/Document/LayerAppearance.swift
+index 67dbbf8..394fa96 100644
+--- a/Compositor/Document/LayerAppearance.swift
++++ b/Compositor/Document/LayerAppearance.swift
+@@ -70,6 +70,7 @@ nonisolated enum LayerBlendMode: String, Codable, CaseIterable, Sendable {
+     // brightness rather than working a channel at a time, and neither framework implements them.
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func displayedBlendMode(for layer: ImageLayer) -> LayerBlendMode {
+         if let blendPreview, blendPreview.layerID == layer.id, activeLayerID == layer.id { return blendPreview.mode }
+diff --git a/Compositor/Document/LayerEffects.swift b/Compositor/Document/LayerEffects.swift
+index 8b17cd6..d3ce4fb 100644
+--- a/Compositor/Document/LayerEffects.swift
++++ b/Compositor/Document/LayerEffects.swift
+@@ -188,11 +188,12 @@ nonisolated enum LayerEffectKind: String, CaseIterable, Sendable {
+     case stroke = "Stroke", shadow = "Drop Shadow", colorOverlay = "Color Overlay", innerShadow = "Inner Shadow", outerGlow = "Outer Glow"
+ }
+ 
+-struct LayerEffectSelection: Equatable {
++nonisolated struct LayerEffectSelection: Equatable {
+     let layerID: UUID
+     let kind: LayerEffectKind
+ }
+ 
++@MainActor
+ extension EditorSession {
+     var canEditEffects: Bool { canEditLayers && activeLayer?.isGroup == false && activeLayer?.asset != nil }
+     var activeEffects: LayerEffects { activeLayer?.effects ?? LayerEffects() }
+diff --git a/Compositor/Document/LayerFlip.swift b/Compositor/Document/LayerFlip.swift
+index ba071c0..46bae05 100644
+--- a/Compositor/Document/LayerFlip.swift
++++ b/Compositor/Document/LayerFlip.swift
+@@ -17,6 +17,7 @@ extension LayerTransform {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Flips the selected layer about its own middle — or several selected layers, or a folder's contents, about
+     /// the middle of the box around them — as one undo step. Masks follow the link: a linked mask flips with its
+diff --git a/Compositor/Document/LayerGroups.swift b/Compositor/Document/LayerGroups.swift
+index a014021..6f87c6b 100644
+--- a/Compositor/Document/LayerGroups.swift
++++ b/Compositor/Document/LayerGroups.swift
+@@ -92,6 +92,7 @@ extension CanvasDocument {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func selectLayers(_ ids: Set<UUID>, primary: UUID?) {
+         effectSelection = nil
+diff --git a/Compositor/Document/LayerMask.swift b/Compositor/Document/LayerMask.swift
+index a074a3e..b812765 100644
+--- a/Compositor/Document/LayerMask.swift
++++ b/Compositor/Document/LayerMask.swift
+@@ -216,6 +216,7 @@ extension ProjectSnapshot {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Layers and folders alike take a mask.
+     var canEditMask: Bool { canEditLayers && selectedLayerIDs.count == 1 && activeLayer != nil }
+@@ -366,7 +367,7 @@ extension EditorSession {
+ }
+ 
+ /// The canvas's last preview of an unlinked mask being distorted on its own.
+-struct MaskDistortPreviewCache {
++nonisolated struct MaskDistortPreviewCache {
+     let corners: [CGPoint]
+     let draft: LayerTransform
+     let mask: CGImage
+@@ -374,6 +375,7 @@ struct MaskDistortPreviewCache {
+     let result: CGImage?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// An unlinked mask being distorted on its own: the warped mask resampled into the layer's grid, for the canvas.
+     func maskDistortPreview(for layer: ImageLayer) -> CGImage? {
+@@ -399,6 +401,7 @@ extension ImageLayer {
+     var maskTransform: LayerTransform { mask?.placement ?? transform }
+ }
+ 
++@MainActor
+ extension BrushStroke {
+     /// Painting a mask on its own placement (the stroke's grid is the mask's): the mask as the stroke leaves it,
+     /// resampled into the layer's grid at preview size, for the canvas to draw the layer through.
+diff --git a/Compositor/Document/LayerMerge.swift b/Compositor/Document/LayerMerge.swift
+index d7c68c7..665d06f 100644
+--- a/Compositor/Document/LayerMerge.swift
++++ b/Compositor/Document/LayerMerge.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ 
++@MainActor
+ extension EditorSession {
+     /// What ⌘E merges, in stacking order, and where the result goes; nil when there is nothing to merge.
+     /// One layer merges with the layer beneath it in the same folder; several selected layers merge together
+diff --git a/Compositor/Document/LayerTransform.swift b/Compositor/Document/LayerTransform.swift
+index ea81beb..c282460 100644
+--- a/Compositor/Document/LayerTransform.swift
++++ b/Compositor/Document/LayerTransform.swift
+@@ -100,12 +100,12 @@ nonisolated struct LayerTransform: Equatable, Codable, Sendable {
+ 
+ /// Several layers transformed together: the upright box around them when the edit began (what the draft edits),
+ /// and each one's transform then.
+-struct TransformGroup {
++nonisolated struct TransformGroup {
+     let box: LayerTransform
+     let originals: [UUID: LayerTransform]
+ }
+ 
+-struct TransformEdit {
++nonisolated struct TransformEdit {
+     let layerID: UUID
+     var draft: LayerTransform
+     let persistent: Bool
+@@ -120,8 +120,8 @@ struct TransformEdit {
+     var group: TransformGroup? = nil
+ }
+ 
+-struct TransformDrag {
+-    enum Mode { case move, resize(Int), rotate, distort(Int) }
++nonisolated struct TransformDrag {
++    nonisolated enum Mode { case move, resize(Int), rotate, distort(Int) }
+     let original: LayerTransform
+     let start: CGPoint
+     let mode: Mode
+diff --git a/Compositor/Document/Levels.swift b/Compositor/Document/Levels.swift
+index dc848c1..95a024a 100644
+--- a/Compositor/Document/Levels.swift
++++ b/Compositor/Document/Levels.swift
+@@ -101,6 +101,7 @@ nonisolated enum LevelsFilter {
+     }
+ }
+ 
++@MainActor
+ @Observable
+ final class LevelsEdit {
+     let layerID: UUID
+@@ -142,6 +143,7 @@ final class LevelsEdit {
+     var previewJob: LevelsJob { LevelsJob(image: previewSource, settings: settings, selection: selection, mapping: previewMapping) }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func beginLevels() {
+         guard levels == nil, hueSaturation == nil, canAdjustColors else { return }
+diff --git a/Compositor/Document/LevelsAutomatic.swift b/Compositor/Document/LevelsAutomatic.swift
+index cb43059..a1dbee8 100644
+--- a/Compositor/Document/LevelsAutomatic.swift
++++ b/Compositor/Document/LevelsAutomatic.swift
+@@ -59,6 +59,7 @@ extension LevelsSettings {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func autoLevels(_ mode: LevelsAuto) {
+         guard let edit = levels, edit.histogramReady, !edit.committing else { return }
+diff --git a/Compositor/Document/LiveLayerMask.swift b/Compositor/Document/LiveLayerMask.swift
+index eb8617a..ad11175 100644
+--- a/Compositor/Document/LiveLayerMask.swift
++++ b/Compositor/Document/LiveLayerMask.swift
+@@ -19,6 +19,7 @@ nonisolated enum LiveMaskGraph {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func canLinkMask(source: UUID, target: UUID) -> Bool {
+         guard canEditLayers, source != target, let layers = document?.layers,
+@@ -97,6 +98,7 @@ nonisolated enum LiveMaskBaker {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func deleteWithLiveMaskChoice(_ id: UUID) -> Bool { deleteWithLiveMaskChoice([id]) }
+     /// When layers being deleted supply live masks to layers that stay, asks whether to bake or unlink,
+@@ -155,6 +157,7 @@ extension EditorSession {
+ }
+ 
+ 
++@MainActor
+ extension EditorSession {
+     func drawLiveComposite(_ document: CanvasDocument, in context: CGContext, onSurface: Bool = false) {
+         if !onSurface, document.layers.contains(where: { $0.adjustment != nil }) {
+@@ -201,6 +204,7 @@ extension EditorSession {
+ }
+ 
+ 
++@MainActor
+ extension EditorSession {
+     func canToggleClippingMask(_ id: UUID) -> Bool {
+         guard canEditLayers, let layers = document?.layers,
+diff --git a/Compositor/Document/MagicWand.swift b/Compositor/Document/MagicWand.swift
+index e0f3193..5942138 100644
+--- a/Compositor/Document/MagicWand.swift
++++ b/Compositor/Document/MagicWand.swift
+@@ -91,6 +91,7 @@ private nonisolated struct WandResult: @unchecked Sendable {
+     let error: Error?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// The Magic Wand: selects pixels similar to the one at `point` (document pixels), read from
+     /// the active layer or every visible layer, combined with the current selection by `mode`.
+diff --git a/Compositor/Document/MaskTracing.swift b/Compositor/Document/MaskTracing.swift
+index 0dcaac1..b4d484c 100644
+--- a/Compositor/Document/MaskTracing.swift
++++ b/Compositor/Document/MaskTracing.swift
+@@ -70,6 +70,7 @@ nonisolated enum MaskTracing {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Cmd-click on a mask thumbnail: the mask's black (hidden) areas become the
+     /// selection. Shift adds to the current selection; Option subtracts from it.
+diff --git a/Compositor/Document/ObjectSelection.swift b/Compositor/Document/ObjectSelection.swift
+index ca4667b..62e0fde 100644
+--- a/Compositor/Document/ObjectSelection.swift
++++ b/Compositor/Document/ObjectSelection.swift
+@@ -267,6 +267,7 @@ private nonisolated struct ObjectSelectionResult: @unchecked Sendable {
+     let error: Error?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Object Selection: selects the Vision foreground instance under `point`, read from
+     /// the active layer or every visible layer, combined with the current selection by `mode`.
+diff --git a/Compositor/Document/Selection.swift b/Compositor/Document/Selection.swift
+index cf59e2e..87357f9 100644
+--- a/Compositor/Document/Selection.swift
++++ b/Compositor/Document/Selection.swift
+@@ -106,7 +106,7 @@ nonisolated enum DragBox {
+ 
+ /// A lasso outline being drawn, in document pixels. `cursor` is the polygonal lasso's
+ /// rubber-band end point.
+-struct LassoDraft {
++nonisolated struct LassoDraft {
+     var points: [CGPoint]
+     var cursor: CGPoint?
+     let mode: SelectionMode
+@@ -115,6 +115,7 @@ struct LassoDraft {
+     var anchor: CGPoint?
+ }
+ 
++@MainActor
+ extension EditorSession {
+     var selection: DocumentSelection? { document?.selection }
+     var canEditSelection: Bool { canEditLayers }
+diff --git a/Compositor/Document/SelectionClipboard.swift b/Compositor/Document/SelectionClipboard.swift
+index fa68eb0..e02dd0d 100644
+--- a/Compositor/Document/SelectionClipboard.swift
++++ b/Compositor/Document/SelectionClipboard.swift
+@@ -1,13 +1,14 @@
+ import AppKit
+ 
+ /// Pixels copied from the canvas, with where they came from so Paste can put them back in place.
+-struct PixelClipboard {
++nonisolated struct PixelClipboard {
+     let image: CGImage
+     let origin: CGPoint
+     /// The system pasteboard's change count right after writing; a mismatch means another app copied since.
+     let changeCount: Int
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Whole-pixel bounds of what Copy takes: the selection, or the whole canvas without one.
+     /// Path boolean operations leave tiny float noise (59.9999999), so round with a tolerance
+diff --git a/Compositor/Document/SelectionEdits.swift b/Compositor/Document/SelectionEdits.swift
+index 72909e5..b6486bf 100644
+--- a/Compositor/Document/SelectionEdits.swift
++++ b/Compositor/Document/SelectionEdits.swift
+@@ -6,11 +6,13 @@ nonisolated private struct Box: @unchecked Sendable {
+     init(_ image: CGImage) { self.image = image }
+ }
+ 
++@MainActor
+ private extension Array {
+     subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+ }
+ 
+ /// Selected pixels being dragged: the lifted raster plus the outline it started from.
++@MainActor
+ final class PixelMove {
+     let raster: BrushStroke
+     let origin: DocumentSelection
+@@ -28,6 +30,7 @@ final class PixelMove {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     nonisolated enum FillSource: Sendable { case foreground, background }
+ 
+diff --git a/Compositor/Document/ShapeTool.swift b/Compositor/Document/ShapeTool.swift
+index bae11de..a2c88ad 100644
+--- a/Compositor/Document/ShapeTool.swift
++++ b/Compositor/Document/ShapeTool.swift
+@@ -53,6 +53,7 @@ extension ImageLayer {
+ }
+ 
+ /// A shape being dragged out with the Shape tool, in whole document pixels.
++@MainActor
+ struct ShapeDraft: Equatable {
+     let kind: ShapeKind
+     let anchor: CGPoint
+@@ -63,6 +64,7 @@ struct ShapeDraft: Equatable {
+     var cornerRadius: CGFloat = 0
+ }
+ 
++@MainActor
+ extension EditorSession {
+     /// Pixels one shape layer may hold, the same budget as an import.
+     nonisolated static let maxShapePixels = 100_000_000
+diff --git a/Compositor/Document/SmudgeLiquify.swift b/Compositor/Document/SmudgeLiquify.swift
+index d163cb7..c84f07e 100644
+--- a/Compositor/Document/SmudgeLiquify.swift
++++ b/Compositor/Document/SmudgeLiquify.swift
+@@ -16,6 +16,7 @@ nonisolated enum BlurToolMode: String, CaseIterable, Sendable {
+ /// A Smudge or Liquify stroke in progress. It works on the active layer as the canvas shows it, at document size,
+ /// changing it dab by dab; the canvas shows that working copy in place of the layer. When the stroke ends, the result
+ /// is painted into the layer's own pixels along the stroke's path (see `EditorSession.finishWarp`).
++@MainActor
+ final class WarpStroke {
+     let layer: ImageLayer
+     let mode: BlurToolMode
+@@ -167,6 +168,7 @@ final class WarpStroke {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func beginWarp(at point: CGPoint) {
+         guard canPaint, !isMaskSelected, let layer = activeLayer, let image = layer.asset?.image, let document else {
+diff --git a/Compositor/Document/SubjectRemoval.swift b/Compositor/Document/SubjectRemoval.swift
+index a021db1..5f723e0 100644
+--- a/Compositor/Document/SubjectRemoval.swift
++++ b/Compositor/Document/SubjectRemoval.swift
+@@ -111,6 +111,7 @@ nonisolated enum SubjectRemoval {
+ }
+ 
+ 
++@MainActor
+ extension EditorSession {
+     /// Select → Subject: the foreground Vision finds in the canvas as it is shown, outlined as a selection. The
+     /// same shape Remove Background masks out, as a selection instead.
+diff --git a/Compositor/Document/TypeTool.swift b/Compositor/Document/TypeTool.swift
+index 712666a..ad738e5 100644
+--- a/Compositor/Document/TypeTool.swift
++++ b/Compositor/Document/TypeTool.swift
+@@ -55,7 +55,7 @@ extension ImageLayer {
+     }
+ }
+ 
+-struct TextDraft: Identifiable {
++nonisolated struct TextDraft: Identifiable {
+     let id = UUID()
+     let documentID: UUID
+     let layerID: UUID?
+@@ -64,6 +64,7 @@ struct TextDraft: Identifiable {
+     var style: LayerTextStyle
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func beginText(at point: CGPoint, newLayer: Bool = false) {
+         guard canEditLayers, textDraft == nil, let document, point.x.isFinite, point.y.isFinite else { return }
+diff --git a/Compositor/IO/CompositorApplicationDelegate.swift b/Compositor/IO/CompositorApplicationDelegate.swift
+index 5277ea3..473a7bd 100644
+--- a/Compositor/IO/CompositorApplicationDelegate.swift
++++ b/Compositor/IO/CompositorApplicationDelegate.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ 
++@MainActor
+ final class CompositorApplicationDelegate: NSObject, NSApplicationDelegate {
+     let workspace = ProjectWorkspace()
+     var session: EditorSession { workspace.current.session }
+diff --git a/Compositor/IO/ImageFileDrop.swift b/Compositor/IO/ImageFileDrop.swift
+index f37e51e..e405924 100644
+--- a/Compositor/IO/ImageFileDrop.swift
++++ b/Compositor/IO/ImageFileDrop.swift
+@@ -2,9 +2,9 @@ import SwiftUI
+ import UniformTypeIdentifiers
+ 
+ /// Resolve in pasteboard order; the importer validates contents rather than trusting extensions.
+-@MainActor
+-enum ImageFileDrop {
+-    static func importProviders(_ providers: [NSItemProvider], into session: EditorSession, at point: CGPoint?, projects: ProjectController? = nil, workspace: ProjectWorkspace? = nil, destination: UUID? = nil) async {
++nonisolated enum ImageFileDrop {
++    // macOS 15 移植说明：本方法直接读写 EditorSession（主线程隔离）的状态，故显式标注。
++    @MainActor static func importProviders(_ providers: [NSItemProvider], into session: EditorSession, at point: CGPoint?, projects: ProjectController? = nil, workspace: ProjectWorkspace? = nil, destination: UUID? = nil) async {
+         var urls: [URL] = []
+         var unreadable = false
+         for provider in providers {
+diff --git a/Compositor/IO/ImageResizer.swift b/Compositor/IO/ImageResizer.swift
+index 55b0ab8..47945ec 100644
+--- a/Compositor/IO/ImageResizer.swift
++++ b/Compositor/IO/ImageResizer.swift
+@@ -101,6 +101,7 @@ actor ImageResizer {
+     }
+ }
+ 
++@MainActor
+ extension EditorSession {
+     func applyImageSize(_ snapshot: ProjectSnapshot) {
+         applyDocumentSize(snapshot, actionName: "Image Size")
+diff --git a/Compositor/IO/ProjectController.swift b/Compositor/IO/ProjectController.swift
+index fa3e009..59942f2 100644
+--- a/Compositor/IO/ProjectController.swift
++++ b/Compositor/IO/ProjectController.swift
+@@ -252,7 +252,7 @@ final class ProjectController {
+         return alert.runModal()
+     }
+ 
+-    private struct Incoming {
++    nonisolated private struct Incoming {
+         let files: [(URL, Bool)]
+         let point: CGPoint?
+         let completion: CheckedContinuation<Void, Never>
+diff --git a/Compositor/IO/ProjectStore.swift b/Compositor/IO/ProjectStore.swift
+index 2f9b327..dd3169b 100644
+--- a/Compositor/IO/ProjectStore.swift
++++ b/Compositor/IO/ProjectStore.swift
+@@ -3,6 +3,7 @@ import CoreGraphics
+ import ImageIO
+ import UniformTypeIdentifiers
+ 
++@MainActor
+ extension UTType {
+     static let compositorProject = UTType(exportedAs: "com.compositor.project", conformingTo: .package)
+     static let photoshopImage = UTType(importedAs: "com.adobe.photoshop-image")
+diff --git a/Compositor/Rendering/BrushCursorOverlay.swift b/Compositor/Rendering/BrushCursorOverlay.swift
+index 70ef268..fe40b4b 100644
+--- a/Compositor/Rendering/BrushCursorOverlay.swift
++++ b/Compositor/Rendering/BrushCursorOverlay.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ 
++@MainActor
+ final class BrushCursorOverlay: NSView {
+     private var circle: CGRect?
+     /// Clone Stamp's source crosshair, in view points.
+diff --git a/Compositor/Rendering/CanvasViewport.swift b/Compositor/Rendering/CanvasViewport.swift
+index 26a8229..fb14cf8 100644
+--- a/Compositor/Rendering/CanvasViewport.swift
++++ b/Compositor/Rendering/CanvasViewport.swift
+@@ -2,7 +2,7 @@ import Foundation
+ import CoreGraphics
+ 
+ /// Document: pixels with top-left origin. View: AppKit points. Zoom 1 means actual display pixels.
+-struct CanvasViewport: Equatable {
++nonisolated struct CanvasViewport: Equatable {
+     var viewSize: CGSize = .zero
+     var backingScale: CGFloat = 1
+     private(set) var zoom: CGFloat = 1
+diff --git a/Compositor/Rendering/EditorCanvas.swift b/Compositor/Rendering/EditorCanvas.swift
+index e139888..11ae268 100644
+--- a/Compositor/Rendering/EditorCanvas.swift
++++ b/Compositor/Rendering/EditorCanvas.swift
+@@ -1,6 +1,7 @@
+ import AppKit
+ import SwiftUI
+ 
++@MainActor
+ struct EditorCanvas: NSViewRepresentable {
+     let session: EditorSession
+     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
+@@ -16,6 +17,7 @@ struct EditorCanvas: NSViewRepresentable {
+     }
+ }
+ 
++@MainActor
+ final class CanvasView: NSView {
+     var inlineTextEditor: InlineTextEditor?
+     var textBoxAnchor: CGPoint?
+@@ -73,7 +75,7 @@ final class CanvasView: NSView {
+     /// View point where a targeted-adjustment drag began.
+     private var hueTargetStart: CGPoint?
+     private var samplingColor = false
+-    private enum GradientHandle { case start, end }
++    nonisolated private enum GradientHandle { case start, end }
+     private var gradientDrag: GradientHandle?
+     private var antsTimer: Timer?
+     private var modifierMonitor: Any?
+@@ -227,7 +229,7 @@ final class CanvasView: NSView {
+         return NSCursor(image: image, hotSpot: base.hotSpot)
+     }
+     /// Which selection tool a crosshair names: the tool rail's icon, small, beneath and right of the crosshair.
+-    enum SelectionIcon: CaseIterable { case freehandLasso, polygonalLasso, rectangleMarquee, ellipseMarquee, objectSelection }
++    nonisolated enum SelectionIcon: CaseIterable { case freehandLasso, polygonalLasso, rectangleMarquee, ellipseMarquee, objectSelection }
+ 
+     /// Crosshair with the tool's icon, and a "+" (add) or "−" (subtract) beside the icon, as Photoshop shows.
+     static let selectionCursors: [SelectionIcon: [SelectionMode: NSCursor]] = Dictionary(uniqueKeysWithValues:
+@@ -438,8 +440,8 @@ final class CanvasView: NSView {
+     /// zooms a step on release instead.
+     private var zoomDrag: (start: CGPoint, zoom: CGFloat, moved: Bool)?
+ 
+-    private struct DisplayState: Equatable {
+-        struct Layer: Equatable {
++    nonisolated private struct DisplayState: Equatable {
++        nonisolated struct Layer: Equatable {
+             let id: UUID
+             let transform: LayerTransform
+             let imageID: ObjectIdentifier?
+@@ -463,7 +465,7 @@ final class CanvasView: NSView {
+         let viewport: CanvasViewport
+         let layers: [Layer]
+         /// Folders have no pixels, so their masks are tracked apart from `layers`.
+-        struct FolderMask: Equatable {
++        nonisolated struct FolderMask: Equatable {
+             let id: UUID
+             let maskID: ObjectIdentifier?
+             let transform: LayerTransform
+@@ -1165,7 +1167,7 @@ final class CanvasView: NSView {
+         return image
+     }
+ 
+-    private struct ClonePreviewKey: Equatable {
++    nonisolated private struct ClonePreviewKey: Equatable {
+         let center: CGPoint
+         let diameter: CGFloat
+         let scale: CGFloat
+diff --git a/Compositor/Rendering/EffectsPreviewCache.swift b/Compositor/Rendering/EffectsPreviewCache.swift
+index 13cabad..1a8a0e9 100644
+--- a/Compositor/Rendering/EffectsPreviewCache.swift
++++ b/Compositor/Rendering/EffectsPreviewCache.swift
+@@ -39,7 +39,7 @@ final class EffectsPreviewCache {
+         /// when the layer's own box was cropped as well as warped.
+         var placement: LayerTransform? = nil
+     }
+-    private struct Entry {
++    nonisolated private struct Entry {
+         let request: Request
+         var result: Result?
+     }
+diff --git a/Compositor/Rendering/InlineTextEditor.swift b/Compositor/Rendering/InlineTextEditor.swift
+index 98002f6..e8e426e 100644
+--- a/Compositor/Rendering/InlineTextEditor.swift
++++ b/Compositor/Rendering/InlineTextEditor.swift
+@@ -2,6 +2,7 @@ import AppKit
+ 
+ /// A native text system on the canvas: selection, marked text/IME, clipboard and local undo
+ /// stay with NSTextView. Its logical bounds are layer pixels; the containing view supplies zoom.
++@MainActor
+ final class CanvasTextView: NSTextView {
+     weak var editor: InlineTextEditor?
+     private let textUndo = UndoManager()
+@@ -34,6 +35,7 @@ final class CanvasTextView: NSTextView {
+     override func resetCursorRects() {}
+ }
+ 
++@MainActor
+ final class InlineTextEditor: NSView, NSTextViewDelegate {
+     weak var canvas: CanvasView?
+     let textView = CanvasTextView(frame: .zero)
+@@ -43,7 +45,7 @@ final class InlineTextEditor: NSView, NSTextViewDelegate {
+     private var logicalSize = CGSize(width: 360, height: 160)
+     private var handleSize: CGFloat = 6
+     private var shownTransform: LayerTransform?
+-    private struct Geometry: Equatable {
++    nonisolated private struct Geometry: Equatable {
+         let transform: LayerTransform
+         let logicalSize: CGSize
+         let anchor: CGPoint
+@@ -376,6 +378,7 @@ final class InlineTextEditor: NSView, NSTextViewDelegate {
+     override func mouseUp(with event: NSEvent) { resize = nil; window?.makeFirstResponder(textView) }
+ }
+ 
++@MainActor
+ extension CanvasView {
+     func synchronizeInlineText() {
+         guard let draft = session.textDraft else {
+diff --git a/Compositor/Rendering/MetalBrushCoverage.swift b/Compositor/Rendering/MetalBrushCoverage.swift
+index 4ba54e6..9af0071 100644
+--- a/Compositor/Rendering/MetalBrushCoverage.swift
++++ b/Compositor/Rendering/MetalBrushCoverage.swift
+@@ -2,17 +2,18 @@ import AppKit
+ import Metal
+ 
+ /// Shared pipeline, with stroke-local tile storage. No full-canvas GPU allocation.
++@MainActor
+ final class MetalBrushCoverage {
+     static let shared: MetalBrushCoverage? = try? MetalBrushCoverage()
+     private let device: MTLDevice
+     private let queue: MTLCommandQueue
+     private let pipeline: MTLComputePipelineState
+ 
+-    struct Tile {
++    nonisolated struct Tile {
+         let permanent: MTLBuffer
+         let preview: MTLBuffer
+     }
+-    private struct Uniforms {
++    nonisolated private struct Uniforms {
+         var mapping: SIMD4<Float>
+         var geometry: SIMD4<Float>
+         var canvas: SIMD4<Float>
+diff --git a/Compositor/Rendering/MetalLayerEffects.swift b/Compositor/Rendering/MetalLayerEffects.swift
+index 0408a2f..abe91ac 100644
+--- a/Compositor/Rendering/MetalLayerEffects.swift
++++ b/Compositor/Rendering/MetalLayerEffects.swift
+@@ -4,7 +4,7 @@ import Metal
+ /// Layer effects on the GPU: the outline's reach and the shadow's blur are the two heavy passes, and both are
+ /// separable, so each runs as a row pass and a column pass over the same pixels. Falls back to the CPU renderer
+ /// when Metal isn't available (see `LayerEffectsRenderer`).
+-final class MetalLayerEffects {
++nonisolated final class MetalLayerEffects {
+     static let shared: MetalLayerEffects? = try? MetalLayerEffects()
+     private let device: MTLDevice
+     private let queue: MTLCommandQueue
+@@ -18,10 +18,10 @@ final class MetalLayerEffects {
+     private let inside: MTLComputePipelineState
+     private let compose: MTLComputePipelineState
+ 
+-    private struct Spread { var width: UInt32; var height: UInt32; var reach: UInt32; var smallest: UInt32 }
+-    private struct Shift { var width: UInt32; var height: UInt32; var dx: Float; var dy: Float }
+-    private struct Blur { var width: UInt32; var height: UInt32; var sigma: Float; var radius: UInt32 }
+-    private struct Compose {
++    nonisolated private struct Spread { var width: UInt32; var height: UInt32; var reach: UInt32; var smallest: UInt32 }
++    nonisolated private struct Shift { var width: UInt32; var height: UInt32; var dx: Float; var dy: Float }
++    nonisolated private struct Blur { var width: UInt32; var height: UInt32; var sigma: Float; var radius: UInt32 }
++    nonisolated private struct Compose {
+         var width: UInt32; var height: UInt32
+         var strokeColor: SIMD4<Float>   // rgb, opacity
+         var shadowColor: SIMD4<Float>
+diff --git a/Compositor/Rendering/SampleRingOverlay.swift b/Compositor/Rendering/SampleRingOverlay.swift
+index 5feaa85..0061ac6 100644
+--- a/Compositor/Rendering/SampleRingOverlay.swift
++++ b/Compositor/Rendering/SampleRingOverlay.swift
+@@ -1,6 +1,7 @@
+ import AppKit
+ 
+ /// Display-only comparison: new sample above, pre-drag color below.
++@MainActor
+ final class SampleRingOverlay: NSView {
+     var original = PaletteColor.black
+     var sampled = PaletteColor.black
+diff --git a/Compositor/Rendering/TransformOverlay.swift b/Compositor/Rendering/TransformOverlay.swift
+index d352d75..a116ac8 100644
+--- a/Compositor/Rendering/TransformOverlay.swift
++++ b/Compositor/Rendering/TransformOverlay.swift
+@@ -1,6 +1,6 @@
+ import AppKit
+ 
+-struct TransformOverlayGeometry: Equatable {
++nonisolated struct TransformOverlayGeometry: Equatable {
+     let handles: [CGPoint]
+     let rotationHandle: CGPoint
+     /// A distortion has no single rotation, so its rotation handle is hidden.
+@@ -50,6 +50,7 @@ struct TransformOverlayGeometry: Equatable {
+ }
+ 
+ /// Separate overlay so selecting a layer does not redraw image pixels.
++@MainActor
+ final class TransformOverlay: NSView {
+     let session: EditorSession
+     init(session: EditorSession) {
+diff --git a/Compositor/UI/BlendModePicker.swift b/Compositor/UI/BlendModePicker.swift
+index d982790..98ab7c1 100644
+--- a/Compositor/UI/BlendModePicker.swift
++++ b/Compositor/UI/BlendModePicker.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ import AppKit
+ 
++@MainActor
+ struct BlendModePicker: NSViewRepresentable {
+     let session: EditorSession
+     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
+@@ -11,8 +12,8 @@ struct BlendModePicker: NSViewRepresentable {
+         button.target = context.coordinator
+         button.action = #selector(Coordinator.choose(_:))
+         button.setAccessibilityLabel(L10n.text("Blend mode"))
+-        // Match the capsule appearance of the SwiftUI controls.
+-        button.borderShape = .capsule
++        // macOS 15 移植说明：原代码为 button.borderShape = .capsule（对齐 SwiftUI 控件的胶囊外观）。
++        // 该 AppKit 属性自 macOS 26 起才存在，macOS 15 无等价 API，此处回落到系统默认边框外观。
+         return button
+     }
+     static func populateMenu(_ button: NSPopUpButton) {
+@@ -38,6 +39,7 @@ struct BlendModePicker: NSViewRepresentable {
+         if coordinator.tracking { coordinator.session.previewBlendMode(nil, for: nil) }
+         button.menu?.delegate = nil
+     }
++    @MainActor
+     final class Coordinator: NSObject, NSMenuDelegate {
+         let session: EditorSession
+         var tracking = false
+diff --git a/Compositor/UI/BrushControls.swift b/Compositor/UI/BrushControls.swift
+index 44c2b37..8913bc3 100644
+--- a/Compositor/UI/BrushControls.swift
++++ b/Compositor/UI/BrushControls.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ import AppKit
+ 
++@MainActor
+ struct BrushControls: View {
+     @Bindable var session: EditorSession
+     var body: some View {
+@@ -114,6 +115,7 @@ struct BrushControls: View {
+ }
+ 
+ /// A rubber stamp for the tool rail (SF Symbols has none): round handle, neck, body, and pad.
++@MainActor
+ struct CloneStampToolIcon: View {
+     var body: some View {
+         Canvas { context, size in
+diff --git a/Compositor/UI/CanvasRulers.swift b/Compositor/UI/CanvasRulers.swift
+index ccb5c10..f481f68 100644
+--- a/Compositor/UI/CanvasRulers.swift
++++ b/Compositor/UI/CanvasRulers.swift
+@@ -1,10 +1,11 @@
+ import AppKit
+ import SwiftUI
+ 
+-enum CanvasRuler {
++nonisolated enum CanvasRuler {
+     static let thickness: CGFloat = 18
+ }
+ 
++@MainActor
+ struct CanvasRulerCorner: View {
+     var body: some View {
+         Rectangle()
+@@ -20,6 +21,7 @@ struct CanvasRulerCorner: View {
+     }
+ }
+ 
++@MainActor
+ struct CanvasRulerView: NSViewRepresentable {
+     let session: EditorSession
+     let axis: CanvasGuide.Axis
+@@ -38,6 +40,7 @@ struct CanvasRulerView: NSViewRepresentable {
+     }
+ }
+ 
++@MainActor
+ final class CanvasRulerNSView: NSView {
+     var session: EditorSession
+     var axis: CanvasGuide.Axis
+diff --git a/Compositor/UI/CanvasSizeSheet.swift b/Compositor/UI/CanvasSizeSheet.swift
+index 43e5b53..d111e7e 100644
+--- a/Compositor/UI/CanvasSizeSheet.swift
++++ b/Compositor/UI/CanvasSizeSheet.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct CanvasSizeSheet: View {
+     let foreground: PaletteColor
+     let background: PaletteColor
+diff --git a/Compositor/UI/CanvasThumbnail.swift b/Compositor/UI/CanvasThumbnail.swift
+index 9035337..5becf23 100644
+--- a/Compositor/UI/CanvasThumbnail.swift
++++ b/Compositor/UI/CanvasThumbnail.swift
+@@ -2,7 +2,7 @@ import AppKit
+ 
+ /// Layers-panel thumbnails framed by the whole canvas, as Photoshop shows them: a layer's pixels (or its
+ /// mask) drawn where they sit on a canvas-shaped picture, whatever the layer's own bounds.
+-enum CanvasThumbnail {
++nonisolated enum CanvasThumbnail {
+     /// Pixels per point in the pictures, so they stay sharp on Retina displays.
+     static let backingScale: CGFloat = 2
+ 
+diff --git a/Compositor/UI/ColorPaletteControls.swift b/Compositor/UI/ColorPaletteControls.swift
+index cc3abbf..8523f05 100644
+--- a/Compositor/UI/ColorPaletteControls.swift
++++ b/Compositor/UI/ColorPaletteControls.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ import AppKit
+ 
++@MainActor
+ struct ColorPaletteControls: View {
+     let session: EditorSession
+     @State private var choosingMaskBackground: Bool?
+diff --git a/Compositor/UI/ColorPickerSheet.swift b/Compositor/UI/ColorPickerSheet.swift
+index 3299f54..3191b59 100644
+--- a/Compositor/UI/ColorPickerSheet.swift
++++ b/Compositor/UI/ColorPickerSheet.swift
+@@ -4,6 +4,7 @@ import AppKit
+ /// Photoshop-style picker: saturation/brightness field, vertical hue strip,
+ /// new/current preview, RGB and hex entry. Lives in a movable floating panel so
+ /// the canvas stays visible and can be clicked to sample a color.
++@MainActor
+ struct ColorPickerSheet: View {
+     @Bindable var state: ColorPickerState
+     let finish: (Bool) -> Void
+@@ -145,6 +146,7 @@ struct ColorPickerSheet: View {
+     }
+ }
+ 
++@MainActor
+ private struct HueArrow: Shape {
+     func path(in rect: CGRect) -> Path {
+         Path { path in
+@@ -162,6 +164,9 @@ extension PaletteColor {
+ 
+ /// Hosts the picker in the shared floating panel: first opened centered on the canvas,
+ /// afterwards wherever it was last left. Closing it with the title-bar button cancels.
++/// macOS 15 移植说明：原工程以 -default-isolation MainActor 编译，本类因此隐式主线程隔离。
++/// 命令行工具链（Swift 6.1.2）不支持该开关，故显式补上 @MainActor，语义与原设置一致。
++@MainActor
+ final class ColorPickerPanelController: NSObject {
+     static let identifier = NSUserInterfaceItemIdentifier("colorPickerPanel")
+     private let panel = FloatingPanelController(name: "colorPickerPanel")
+diff --git a/Compositor/UI/CropControls.swift b/Compositor/UI/CropControls.swift
+index 80aeefa..cd05e64 100644
+--- a/Compositor/UI/CropControls.swift
++++ b/Compositor/UI/CropControls.swift
+@@ -2,6 +2,7 @@ import SwiftUI
+ 
+ /// The Crop tool's header. A view of its own because dragging the crop frame changes `cropRect` on
+ /// every mouse move: read here, only this bar re-renders, not the whole editor and its Layers panel.
++@MainActor
+ struct CropControls: View {
+     @Bindable var session: EditorSession
+ 
+diff --git a/Compositor/UI/CurvesControls.swift b/Compositor/UI/CurvesControls.swift
+index 86c7441..87d55e0 100644
+--- a/Compositor/UI/CurvesControls.swift
++++ b/Compositor/UI/CurvesControls.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct CurvesControls: View {
+     @Binding var settings: CurvesSettings
+     @State private var selected: Int?
+diff --git a/Compositor/UI/EffectsSheet.swift b/Compositor/UI/EffectsSheet.swift
+index 3fa09bc..85b399c 100644
+--- a/Compositor/UI/EffectsSheet.swift
++++ b/Compositor/UI/EffectsSheet.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ 
+ /// One effect's controls, bound to the layer that opened the panel. Changes preview on the canvas.
++@MainActor
+ struct EffectsSheet: View {
+     @Bindable var session: EditorSession
+     let kind: LayerEffectKind
+diff --git a/Compositor/UI/FilterSheet.swift b/Compositor/UI/FilterSheet.swift
+index b4ec039..e2fe41f 100644
+--- a/Compositor/UI/FilterSheet.swift
++++ b/Compositor/UI/FilterSheet.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ 
+ /// The open filter's panel: its settings, Preview, and Cancel / OK.
++@MainActor
+ struct FilterSheet: View {
+     @Bindable var session: EditorSession
+     private var edit: FilterEdit? { session.filterEdit }
+@@ -148,6 +149,7 @@ struct FilterSheet: View {
+ 
+ /// Gradient Map's two colors, the gradient they make, and Reverse. The colors are swatches like the
+ /// tool rail's, and open the app's own color picker.
++@MainActor
+ struct GradientMapControls: View {
+     @Binding var settings: GradientMapSettings
+     /// Opens the color picker on an end: false for Shadows, true for Highlights.
+diff --git a/Compositor/UI/GradientControls.swift b/Compositor/UI/GradientControls.swift
+index 96d5141..6baae26 100644
+--- a/Compositor/UI/GradientControls.swift
++++ b/Compositor/UI/GradientControls.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct GradientControls: View {
+     @Bindable var session: EditorSession
+ 
+@@ -62,6 +63,7 @@ struct GradientControls: View {
+ 
+ /// One-color tool-rail icon: a Floyd–Steinberg dithered fade from empty to solid, so it
+ /// reads as a gradient in the same monochrome style as the SF Symbols beside it.
++@MainActor
+ struct GradientToolIcon: View {
+     /// 16×16 so each dot is exactly 1 pt inside the icon's 16 pt frame.
+     private static let pattern: [[Bool]] = {
+diff --git a/Compositor/UI/HueSaturationSheet.swift b/Compositor/UI/HueSaturationSheet.swift
+index b2b092e..c09ca08 100644
+--- a/Compositor/UI/HueSaturationSheet.swift
++++ b/Compositor/UI/HueSaturationSheet.swift
+@@ -2,6 +2,7 @@ import SwiftUI
+ 
+ /// Reads and writes the open edit's settings, so sampling from the canvas and the panel's
+ /// own controls always agree.
++@MainActor
+ struct HueSaturationSheet: View {
+     @Bindable var session: EditorSession
+ 
+@@ -127,6 +128,7 @@ struct HueSaturationSheet: View {
+ 
+ /// Photoshop's two spectrum bars: the hues as they are, the handles for the selected
+ /// range's band, and the hues as the adjustment leaves them.
++@MainActor
+ struct SpectrumEditor: View {
+     @Binding var settings: HueSaturationSettings
+     @State private var dragging: Int?
+diff --git a/Compositor/UI/ImageSizeSheet.swift b/Compositor/UI/ImageSizeSheet.swift
+index ed9f250..4b98fc2 100644
+--- a/Compositor/UI/ImageSizeSheet.swift
++++ b/Compositor/UI/ImageSizeSheet.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct ImageSizeSheet: View {
+     let document: CanvasDocument
+     let finish: (ImageSizeOptions?) -> Void
+diff --git a/Compositor/UI/JPEGExportSheet.swift b/Compositor/UI/JPEGExportSheet.swift
+index 3cafb66..49c74b0 100644
+--- a/Compositor/UI/JPEGExportSheet.swift
++++ b/Compositor/UI/JPEGExportSheet.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct JPEGExportSheet: View {
+     let raster: ExportRaster
+     let finish: (Data?) -> Void
+diff --git a/Compositor/UI/KeyboardShortcuts.swift b/Compositor/UI/KeyboardShortcuts.swift
+index 71725b0..129abd4 100644
+--- a/Compositor/UI/KeyboardShortcuts.swift
++++ b/Compositor/UI/KeyboardShortcuts.swift
+@@ -1,7 +1,7 @@
+ import AppKit
+ import SwiftUI
+ 
+-struct ShortcutChord: Codable, Equatable, Hashable {
++nonisolated struct ShortcutChord: Codable, Equatable, Hashable {
+     var key: String
+     var modifiers: Int
+     init(_ key: String, _ modifiers: Int = 0) { self.key = key; self.modifiers = modifiers }
+@@ -60,7 +60,9 @@ struct ShortcutChord: Codable, Equatable, Hashable {
+     }
+ }
+ 
+-struct ShortcutDefinition: Identifiable {
++// macOS 15 移植说明：原为隐式主线程隔离。本类型只是数据容器，且其 static let all
++// 的初始化表达式按 Swift 规则在非隔离上下文求值，故按作者的既有写法（见 L10n 等）标为 nonisolated。
++nonisolated struct ShortcutDefinition: Identifiable {
+     let title: String
+     let group: String
+     let original: ShortcutChord
+@@ -234,6 +236,7 @@ final class ShortcutSettings {
+     }
+ }
+ 
++@MainActor
+ extension View {
+     func configuredNativeShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = []) -> some View {
+         let chord = ShortcutSettings.shared.native(key, modifiers: modifiers)
+@@ -247,6 +250,7 @@ extension View {
+     }
+ }
+ 
++@MainActor
+ private struct KeyboardShortcutsSheet: View {
+     let settings: ShortcutSettings
+     @State private var draft: [String: ShortcutChord]
+@@ -305,6 +309,7 @@ private struct KeyboardShortcutsSheet: View {
+     }
+ }
+ 
++@MainActor
+ private struct ShortcutRecorder: NSViewRepresentable {
+     let chord: ShortcutChord
+     let recording: Bool
+diff --git a/Compositor/UI/LassoControls.swift b/Compositor/UI/LassoControls.swift
+index ac106bf..b070b0c 100644
+--- a/Compositor/UI/LassoControls.swift
++++ b/Compositor/UI/LassoControls.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct LassoControls: View {
+     @Bindable var session: EditorSession
+ 
+@@ -156,6 +157,7 @@ struct LassoControls: View {
+ 
+ /// Tool-rail icon for the Polygonal Lasso: the lasso's loop and rope drawn as straight segments, in the
+ /// line weight of the SF Symbols beside it.
++@MainActor
+ struct PolygonalLassoToolIcon: View {
+     var body: some View {
+         Canvas { context, size in
+@@ -178,6 +180,7 @@ struct PolygonalLassoToolIcon: View {
+ }
+ 
+ /// Selection modifiers share the filter panels' floating window and control layout.
++@MainActor
+ struct SelectionAmountSheet: View {
+     let session: EditorSession
+     let operation: EditorSession.SelectionAmountOperation
+@@ -235,6 +238,7 @@ struct SelectionAmountSheet: View {
+     }
+ }
+ 
++@MainActor
+ struct ObjectSelectionToolIcon: View {
+     var body: some View {
+         Canvas { context, size in
+diff --git a/Compositor/UI/LayerAppearanceControls.swift b/Compositor/UI/LayerAppearanceControls.swift
+index 7343e8e..4d9a86c 100644
+--- a/Compositor/UI/LayerAppearanceControls.swift
++++ b/Compositor/UI/LayerAppearanceControls.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct LayerAppearanceControls: View {
+     @Bindable var session: EditorSession
+     let layerID: UUID?
+diff --git a/Compositor/UI/LayerMaskMenu.swift b/Compositor/UI/LayerMaskMenu.swift
+index 5edcdd2..64de743 100644
+--- a/Compositor/UI/LayerMaskMenu.swift
++++ b/Compositor/UI/LayerMaskMenu.swift
+@@ -2,6 +2,7 @@ import SwiftUI
+ 
+ /// Adds a mask in one click: all white, or with a selection, the selection black.
+ /// Enable/Disable and Delete live in the layer's context menu.
++@MainActor
+ struct LayerMaskMenu: View {
+     let session: EditorSession
+     var body: some View {
+diff --git a/Compositor/UI/LayersPanel.swift b/Compositor/UI/LayersPanel.swift
+index cdd8995..266dfbd 100644
+--- a/Compositor/UI/LayersPanel.swift
++++ b/Compositor/UI/LayersPanel.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct LayersPanel: View {
+     @Bindable var session: EditorSession
+     /// Dragging the panel's left edge sets it, within `widths`.
+@@ -71,6 +72,7 @@ struct LayersPanel: View {
+ 
+ }
+ 
++@MainActor
+ extension View {
+     /// Makes a small footer icon easier to click. The padding is the clickable area, so the
+     /// footer's own spacing is reduced to match and every icon keeps its old position.
+diff --git a/Compositor/UI/LevelsSheet.swift b/Compositor/UI/LevelsSheet.swift
+index ca4e864..4e0fa75 100644
+--- a/Compositor/UI/LevelsSheet.swift
++++ b/Compositor/UI/LevelsSheet.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct LevelsSheet: View {
+     @Bindable var session: EditorSession
+     private var edit: LevelsEdit? { session.levels }
+diff --git a/Compositor/UI/NativeLayerList.swift b/Compositor/UI/NativeLayerList.swift
+index 6e1f16a..a00b3f2 100644
+--- a/Compositor/UI/NativeLayerList.swift
++++ b/Compositor/UI/NativeLayerList.swift
+@@ -2,6 +2,7 @@ import AppKit
+ import SwiftUI
+ 
+ /// Native mouse-down selection and drag tracking, without a double-click delay.
++@MainActor
+ struct NativeLayerList: NSViewRepresentable {
+     let session: EditorSession
+     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
+@@ -41,6 +42,7 @@ struct NativeLayerList: NSViewRepresentable {
+         if let table = scroll.documentView as? NSTableView { context.coordinator.update(table) }
+     }
+ 
++    @MainActor
+     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+         static let layerType = NSPasteboard.PasteboardType("com.compositor.layer-row")
+         /// An Option-drag from a mask thumbnail: the id of the layer whose mask is being copied.
+@@ -255,6 +257,7 @@ struct NativeLayerList: NSViewRepresentable {
+     }
+ }
+ 
++@MainActor
+ final class LayerTableView: NSTableView {
+     weak var session: EditorSession?
+     private var clippingTracking: NSTrackingArea?
+@@ -457,6 +460,7 @@ final class LayerTableView: NSTableView {
+     }
+ }
+ 
++@MainActor
+ private final class LayerCell: NSTableCellView, NSTextFieldDelegate {
+     /// The layer's own name, without the mark a clipped layer's row shows in front of it.
+     private var layerName = ""
+@@ -849,6 +853,7 @@ private final class LayerCell: NSTableCellView, NSTextFieldDelegate {
+ }
+ 
+ /// An effect belongs visually to its layer but has its own selection and visibility control.
++@MainActor
+ private final class LayerEffectRow: NSView, NSDraggingSource {
+     fileprivate weak var session: EditorSession?
+     fileprivate let layerID: UUID
+@@ -943,6 +948,7 @@ private final class LayerEffectRow: NSView, NSDraggingSource {
+ }
+ 
+ /// Select on mouse-down, then let the table retain native drag and multiselect tracking.
++@MainActor
+ private final class LayerThumbnailButton: NSButton, NSDraggingSource {
+     /// The row's layer, for a mask thumbnail's Option-drag.
+     var layerID: UUID?
+@@ -1032,6 +1038,7 @@ private final class LayerThumbnailButton: NSButton, NSDraggingSource {
+     }
+ }
+ 
++@MainActor
+ extension LayerThumbnailButton {
+     /// Option-drag from a mask thumbnail carries a copy of the mask to another row; a click without a drag just
+     /// selects the mask.
+@@ -1059,6 +1066,7 @@ extension LayerThumbnailButton {
+     }
+ }
+ /// One device pixel of faint white, ignored by clicks.
++@MainActor
+ private final class RowEdgeLine: NSView {
+     override func draw(_ dirtyRect: NSRect) {
+         let scale = window?.backingScaleFactor ?? 2
+@@ -1069,6 +1077,7 @@ private final class RowEdgeLine: NSView {
+ }
+ /// A layer's eye. Pressing it shows or hides the layer; keeping the button down and dragging up or down the list
+ /// gives every eye passed over the same state, as in Photoshop.
++@MainActor
+ private final class EyeSwipeButton: NSButton {
+     var layerID: UUID?
+     weak var session: EditorSession?
+@@ -1091,12 +1100,13 @@ private final class EyeSwipeButton: NSButton {
+         }
+     }
+ }
++@MainActor
+ private final class MaskDisabledMark: NSTextField {
+     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+ }
+ 
+ /// What a row's canvas-framed thumbnail shows, so it redraws only when one of these changes.
+-private struct ThumbnailKey: Equatable {
++nonisolated private struct ThumbnailKey: Equatable {
+     let image: ObjectIdentifier?
+     let transform: LayerTransform
+     let canvas: CGSize
+diff --git a/Compositor/UI/NavigationToolHeader.swift b/Compositor/UI/NavigationToolHeader.swift
+index 7a26490..4ed3222 100644
+--- a/Compositor/UI/NavigationToolHeader.swift
++++ b/Compositor/UI/NavigationToolHeader.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct NavigationToolHeader: View {
+     @Bindable var session: EditorSession
+     @State private var zoomText = ""
+diff --git a/Compositor/UI/NewCanvasSheet.swift b/Compositor/UI/NewCanvasSheet.swift
+index 1b246bb..38d3fe9 100644
+--- a/Compositor/UI/NewCanvasSheet.swift
++++ b/Compositor/UI/NewCanvasSheet.swift
+@@ -2,6 +2,7 @@ import SwiftUI
+ import AppKit
+ import ImageIO
+ 
++@MainActor
+ struct NewCanvasSheet: View {
+     let session: EditorSession
+     var onCreate: ((Int, Int) -> Void)? = nil
+@@ -10,7 +11,7 @@ struct NewCanvasSheet: View {
+     @State private var height = "1080"
+     @State private var suggestedClipboardSize = false
+     @FocusState private var focusedField: Field?
+-    private enum Field { case width, height }
++    nonisolated private enum Field { case width, height }
+     private var valid: Bool {
+         CanvasDocument.validDimension(width) != nil && CanvasDocument.validDimension(height) != nil
+     }
+diff --git a/Compositor/UI/PSDConversionSheet.swift b/Compositor/UI/PSDConversionSheet.swift
+index 601c58c..0a5ec33 100644
+--- a/Compositor/UI/PSDConversionSheet.swift
++++ b/Compositor/UI/PSDConversionSheet.swift
+@@ -1,6 +1,6 @@
+ import SwiftUI
+ 
+-struct PSDConversionRequest: Identifiable, Equatable, Sendable {
++nonisolated struct PSDConversionRequest: Identifiable, Equatable, Sendable {
+     let id: UUID
+     let title: String
+     let confirmTitle: String
+@@ -17,6 +17,7 @@ struct PSDConversionRequest: Identifiable, Equatable, Sendable {
+     }
+ }
+ 
++@MainActor
+ struct PSDConversionSheet: View {
+     let request: PSDConversionRequest
+     let finish: (Bool) -> Void
+@@ -55,6 +56,7 @@ struct PSDConversionSheet: View {
+     }
+ }
+ 
++@MainActor
+ extension View {
+     func psdConversionSheet(_ session: EditorSession) -> some View {
+         sheet(isPresented: Binding(
+diff --git a/Compositor/UI/ProjectTabs.swift b/Compositor/UI/ProjectTabs.swift
+index 725e8cb..61d3036 100644
+--- a/Compositor/UI/ProjectTabs.swift
++++ b/Compositor/UI/ProjectTabs.swift
+@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
+ import AppKit
+ import Combine
+ 
++@MainActor
+ struct ProjectWorkspaceView: View {
+     let applicationDelegate: CompositorApplicationDelegate
+     private var workspace: ProjectWorkspace { applicationDelegate.workspace }
+@@ -18,6 +19,7 @@ struct ProjectWorkspaceView: View {
+     }
+ }
+ 
++@MainActor
+ struct ProjectTabStrip: View {
+     let workspace: ProjectWorkspace
+     @State private var dragging = false
+@@ -75,6 +77,7 @@ struct ProjectTabStrip: View {
+     }
+ }
+ 
++@MainActor
+ private struct NewTabDropSlot: View {
+     let workspace: ProjectWorkspace
+     @State private var targeted = false
+@@ -93,6 +96,7 @@ private struct NewTabDropSlot: View {
+     }
+ }
+ 
++@MainActor
+ private struct ProjectTabButton: View {
+     let workspace: ProjectWorkspace
+     let tab: ProjectTab
+@@ -127,6 +131,7 @@ private struct ProjectTabButton: View {
+     }
+ }
+ 
++@MainActor
+ struct NewProjectDropTarget: ViewModifier {
+     let workspace: ProjectWorkspace?
+     @State private var targeted = false
+@@ -139,6 +144,7 @@ struct NewProjectDropTarget: ViewModifier {
+     }
+ }
+ 
++@MainActor
+ extension ProjectWorkspace {
+     /// The tab a layer drag started from: drops carry only the layer's id, and the drag pasteboard can be read
+     /// while the drag is still in the air, before any drop.
+@@ -155,7 +161,7 @@ extension ProjectWorkspace {
+     }
+ }
+ 
+-private struct ProjectTabDropDelegate: DropDelegate {
++nonisolated private struct ProjectTabDropDelegate: DropDelegate {
+     let workspace: ProjectWorkspace?
+     let destination: UUID?
+     @Binding var targeted: Bool
+diff --git a/Compositor/UI/ProjectWindowBridge.swift b/Compositor/UI/ProjectWindowBridge.swift
+index 15f53da..840440e 100644
+--- a/Compositor/UI/ProjectWindowBridge.swift
++++ b/Compositor/UI/ProjectWindowBridge.swift
+@@ -2,6 +2,7 @@ import AppKit
+ import SwiftUI
+ 
+ /// Intercepts only close approval and forwards SwiftUI's other window callbacks.
++@MainActor
+ struct ProjectWindowBridge: NSViewRepresentable {
+     let controller: ProjectController
+     func makeNSView(context: Context) -> ProjectWindowView { ProjectWindowView(controller: controller) }
+@@ -13,6 +14,7 @@ struct ProjectWindowBridge: NSViewRepresentable {
+     }
+ }
+ 
++@MainActor
+ final class ProjectWindowView: NSView {
+     var controller: ProjectController
+     private let proxy = ProjectWindowDelegate()
+@@ -42,6 +44,7 @@ final class ProjectWindowView: NSView {
+     }
+ }
+ 
++@MainActor
+ private final class ProjectWindowDelegate: NSObject, NSWindowDelegate {
+     weak var previous: NSWindowDelegate?
+     weak var controller: ProjectController?
+diff --git a/Compositor/UI/RawDevelopSheet.swift b/Compositor/UI/RawDevelopSheet.swift
+index 7f2121b..32744ba 100644
+--- a/Compositor/UI/RawDevelopSheet.swift
++++ b/Compositor/UI/RawDevelopSheet.swift
+@@ -3,6 +3,7 @@ import SwiftUI
+ /// A RAW file holds more range than a layer can, so the choice of what to keep is made here rather
+ /// than assumed. The preview develops at screen size while the sliders move; the import then
+ /// develops the full frame once.
++@MainActor
+ struct RawDevelopSheet: View {
+     let session: EditorSession
+     let url: URL
+@@ -76,6 +77,7 @@ struct RawDevelopSheet: View {
+     }
+ }
+ 
++@MainActor
+ extension View {
+     func rawDevelopSheet(_ session: EditorSession) -> some View {
+         sheet(isPresented: Binding(
+diff --git a/Compositor/UI/ShapeControls.swift b/Compositor/UI/ShapeControls.swift
+index 4f1e25d..2b9abb7 100644
+--- a/Compositor/UI/ShapeControls.swift
++++ b/Compositor/UI/ShapeControls.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct ShapeControls: View {
+     @Bindable var session: EditorSession
+ 
+diff --git a/Compositor/UI/SliderSnap.swift b/Compositor/UI/SliderSnap.swift
+index 4833184..c2f6ab8 100644
+--- a/Compositor/UI/SliderSnap.swift
++++ b/Compositor/UI/SliderSnap.swift
+@@ -7,7 +7,7 @@ import ObjectiveC
+ /// press: tracking then begins with the knob already under the pointer, so it neither jumps nor
+ /// glides, and dragging carries on from there. Pressing the knob itself still drags it from where
+ /// it is. SwiftUI's `Slider` is an `NSSlider`, so this covers every slider in the app.
+-enum SliderSnap {
++nonisolated enum SliderSnap {
+     static func install() { _ = installed }
+ 
+     private static let installed: Void = {
+diff --git a/Compositor/UI/ToolHeaderStyle.swift b/Compositor/UI/ToolHeaderStyle.swift
+index 6192724..f2b8427 100644
+--- a/Compositor/UI/ToolHeaderStyle.swift
++++ b/Compositor/UI/ToolHeaderStyle.swift
+@@ -1,12 +1,14 @@
+ import SwiftUI
+ 
+ /// Shared metrics keep tool switching from changing typography or canvas layout.
++@MainActor
+ enum ToolHeaderStyle {
+     static let height: CGFloat = 42
+     static let titleFont = Font.system(size: 13, weight: .semibold)
+     static let controlFont = Font.system(size: 12)
+ }
+ 
++@MainActor
+ extension View {
+     /// Keeps a unit ("%", "px") tight against its field so the two read as one value,
+     /// regardless of the wider spacing between controls in a bar.
+diff --git a/Compositor/UI/TransformInspector.swift b/Compositor/UI/TransformInspector.swift
+index 812daca..3d4c8db 100644
+--- a/Compositor/UI/TransformInspector.swift
++++ b/Compositor/UI/TransformInspector.swift
+@@ -1,5 +1,6 @@
+ import SwiftUI
+ 
++@MainActor
+ struct TransformInspector: View {
+     @Bindable var session: EditorSession
+     private var value: LayerTransform {
+@@ -74,6 +75,7 @@ struct TransformInspector: View {
+     }
+ }
+ 
++@MainActor
+ private struct TransformValueField: View {
+     let label: String
+     var suffix: String? = nil
+diff --git a/Compositor/UI/TypeControls.swift b/Compositor/UI/TypeControls.swift
+index 1255732..f01690f 100644
+--- a/Compositor/UI/TypeControls.swift
++++ b/Compositor/UI/TypeControls.swift
+@@ -1,6 +1,7 @@
+ import SwiftUI
+ import AppKit
+ 
++@MainActor
+ struct TypeControls: View {
+     @Bindable var session: EditorSession
+     private func value<T>(_ key: WritableKeyPath<LayerTextStyle, T>) -> Binding<T> {
+@@ -83,6 +84,7 @@ struct TypeControls: View {
+ 
+ /// Keep the installed-font catalog out of SwiftUI's per-keystroke view updates.
+ /// The closed control needs only the current name; populate its menu on demand.
++@MainActor
+ private struct TypeFontPicker: NSViewRepresentable {
+     @Binding var fontName: String
+     @Environment(\.isEnabled) private var isEnabled
+@@ -92,7 +94,9 @@ private struct TypeFontPicker: NSViewRepresentable {
+     func makeNSView(context: Context) -> NSPopUpButton {
+         let button = FixedWidthPopUpButton(frame: .zero, pullsDown: false)
+         button.addItem(withTitle: fontName)
+-        button.borderShape = .capsule
++        // macOS 15 移植说明：原代码为 button.borderShape = .capsule，
++        // 该 AppKit 属性自 macOS 26 起才存在（本机运行时已实测不存在），
++        // macOS 15 无等价 API，此处回落到系统默认边框外观（仅视觉差异）。
+         // A long font name is cut off at its end rather than widening the control or scrolling its start away.
+         button.cell?.lineBreakMode = .byTruncatingTail
+         button.cell?.usesSingleLineMode = true

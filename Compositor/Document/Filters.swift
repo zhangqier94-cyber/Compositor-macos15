@@ -180,6 +180,7 @@ nonisolated enum PixelFilter {
     }
 }
 
+@MainActor
 @Observable
 final class FilterEdit {
     let kind: FilterKind
@@ -304,6 +305,7 @@ final class FilterEdit {
     }
 }
 
+@MainActor
 extension EditorSession {
     var canContentAwareFill: Bool {
         canAdjustColors && !isMaskSelected && selection?.isEmpty == false && filterEdit == nil && hueSaturation == nil

@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 extension EditorSession {
     /// An explicitly empty selection leaves nothing paintable, so painting never starts.
     var canPaint: Bool {

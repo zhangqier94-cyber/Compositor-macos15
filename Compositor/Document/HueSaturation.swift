@@ -153,7 +153,7 @@ nonisolated enum HueSampleMode: String, CaseIterable, Sendable {
 }
 
 /// A targeted-adjustment drag in progress.
-struct HueTargetDrag {
+nonisolated struct HueTargetDrag {
     let range: ColorRange
     let hue: Double
     let saturation: Double
@@ -364,6 +364,7 @@ nonisolated enum HueSaturationFilter {
 /// One open Hue/Saturation dialog. Previews render from a downscaled copy of the original
 /// and are drawn straight on the canvas, so dragging stays responsive and the document is
 /// untouched until OK.
+@MainActor
 @Observable
 final class HueSaturationEdit {
     let layerID: UUID
@@ -408,6 +409,7 @@ final class HueSaturationEdit {
     func setPreview(_ image: CGImage?) { preparedPreview = image }
 }
 
+@MainActor
 extension EditorSession {
     /// Color adjustments need a visible image layer (not a mask) and a non-empty selection
     /// if there is one; a pending gradient or transform is applied first.

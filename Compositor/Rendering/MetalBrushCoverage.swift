@@ -2,17 +2,18 @@ import AppKit
 import Metal
 
 /// Shared pipeline, with stroke-local tile storage. No full-canvas GPU allocation.
+@MainActor
 final class MetalBrushCoverage {
     static let shared: MetalBrushCoverage? = try? MetalBrushCoverage()
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let pipeline: MTLComputePipelineState
 
-    struct Tile {
+    nonisolated struct Tile {
         let permanent: MTLBuffer
         let preview: MTLBuffer
     }
-    private struct Uniforms {
+    nonisolated private struct Uniforms {
         var mapping: SIMD4<Float>
         var geometry: SIMD4<Float>
         var canvas: SIMD4<Float>

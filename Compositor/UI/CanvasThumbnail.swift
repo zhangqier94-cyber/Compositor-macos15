@@ -2,7 +2,7 @@ import AppKit
 
 /// Layers-panel thumbnails framed by the whole canvas, as Photoshop shows them: a layer's pixels (or its
 /// mask) drawn where they sit on a canvas-shaped picture, whatever the layer's own bounds.
-enum CanvasThumbnail {
+nonisolated enum CanvasThumbnail {
     /// Pixels per point in the pictures, so they stay sharp on Retina displays.
     static let backingScale: CGFloat = 2
 

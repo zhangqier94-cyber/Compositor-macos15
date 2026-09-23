@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 struct BlendModePicker: NSViewRepresentable {
     let session: EditorSession
     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
@@ -11,8 +12,8 @@ struct BlendModePicker: NSViewRepresentable {
         button.target = context.coordinator
         button.action = #selector(Coordinator.choose(_:))
         button.setAccessibilityLabel(L10n.text("Blend mode"))
-        // Match the capsule appearance of the SwiftUI controls.
-        button.borderShape = .capsule
+        // macOS 15 移植说明：原代码为 button.borderShape = .capsule（对齐 SwiftUI 控件的胶囊外观）。
+        // 该 AppKit 属性自 macOS 26 起才存在，macOS 15 无等价 API，此处回落到系统默认边框外观。
         return button
     }
     static func populateMenu(_ button: NSPopUpButton) {
@@ -38,6 +39,7 @@ struct BlendModePicker: NSViewRepresentable {
         if coordinator.tracking { coordinator.session.previewBlendMode(nil, for: nil) }
         button.menu?.delegate = nil
     }
+    @MainActor
     final class Coordinator: NSObject, NSMenuDelegate {
         let session: EditorSession
         var tracking = false

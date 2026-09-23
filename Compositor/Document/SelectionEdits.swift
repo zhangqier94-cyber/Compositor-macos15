@@ -6,11 +6,13 @@ nonisolated private struct Box: @unchecked Sendable {
     init(_ image: CGImage) { self.image = image }
 }
 
+@MainActor
 private extension Array {
     subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
 /// Selected pixels being dragged: the lifted raster plus the outline it started from.
+@MainActor
 final class PixelMove {
     let raster: BrushStroke
     let origin: DocumentSelection
@@ -28,6 +30,7 @@ final class PixelMove {
     }
 }
 
+@MainActor
 extension EditorSession {
     nonisolated enum FillSource: Sendable { case foreground, background }
 

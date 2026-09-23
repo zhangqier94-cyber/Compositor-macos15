@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 struct TypeControls: View {
     @Bindable var session: EditorSession
     private func value<T>(_ key: WritableKeyPath<LayerTextStyle, T>) -> Binding<T> {
@@ -83,6 +84,7 @@ struct TypeControls: View {
 
 /// Keep the installed-font catalog out of SwiftUI's per-keystroke view updates.
 /// The closed control needs only the current name; populate its menu on demand.
+@MainActor
 private struct TypeFontPicker: NSViewRepresentable {
     @Binding var fontName: String
     @Environment(\.isEnabled) private var isEnabled
@@ -92,7 +94,9 @@ private struct TypeFontPicker: NSViewRepresentable {
     func makeNSView(context: Context) -> NSPopUpButton {
         let button = FixedWidthPopUpButton(frame: .zero, pullsDown: false)
         button.addItem(withTitle: fontName)
-        button.borderShape = .capsule
+        // macOS 15 移植说明：原代码为 button.borderShape = .capsule，
+        // 该 AppKit 属性自 macOS 26 起才存在（本机运行时已实测不存在），
+        // macOS 15 无等价 API，此处回落到系统默认边框外观（仅视觉差异）。
         // A long font name is cut off at its end rather than widening the control or scrolling its start away.
         button.cell?.lineBreakMode = .byTruncatingTail
         button.cell?.usesSingleLineMode = true

@@ -108,6 +108,7 @@ nonisolated struct LayerAdjustment: Codable, Equatable, Sendable {
     }
 }
 
+@MainActor
 extension EditorSession {
     func addAdjustment(_ kind: AdjustmentKind) {
         guard canEditLayers, let document, document.layers.count < 10_000 else { return }

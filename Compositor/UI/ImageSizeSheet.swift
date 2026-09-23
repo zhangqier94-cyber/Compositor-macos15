@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ImageSizeSheet: View {
     let document: CanvasDocument
     let finish: (ImageSizeOptions?) -> Void

@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class BrushCursorOverlay: NSView {
     private var circle: CGRect?
     /// Clone Stamp's source crosshair, in view points.

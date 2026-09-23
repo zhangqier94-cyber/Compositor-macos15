@@ -3,14 +3,15 @@ import CoreGraphics
 import Observation
 
 /// Value snapshots share immutable CGImages; no pixel copies for layer edits.
+@MainActor
 @Observable
 final class DocumentHistory {
-    struct Snapshot {
+    nonisolated struct Snapshot {
         let document: CanvasDocument?
         let activeLayerID: UUID?
         let revision: UUID
     }
-    private struct Entry {
+    nonisolated private struct Entry {
         let name: String
         let before: Snapshot
         let after: Snapshot

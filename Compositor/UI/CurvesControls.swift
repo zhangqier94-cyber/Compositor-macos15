@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CurvesControls: View {
     @Binding var settings: CurvesSettings
     @State private var selected: Int?

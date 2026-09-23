@@ -59,6 +59,7 @@ extension LevelsSettings {
     }
 }
 
+@MainActor
 extension EditorSession {
     func autoLevels(_ mode: LevelsAuto) {
         guard let edit = levels, edit.histogramReady, !edit.committing else { return }

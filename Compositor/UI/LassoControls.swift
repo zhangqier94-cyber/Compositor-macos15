@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct LassoControls: View {
     @Bindable var session: EditorSession
 
@@ -156,6 +157,7 @@ struct LassoControls: View {
 
 /// Tool-rail icon for the Polygonal Lasso: the lasso's loop and rope drawn as straight segments, in the
 /// line weight of the SF Symbols beside it.
+@MainActor
 struct PolygonalLassoToolIcon: View {
     var body: some View {
         Canvas { context, size in
@@ -178,6 +180,7 @@ struct PolygonalLassoToolIcon: View {
 }
 
 /// Selection modifiers share the filter panels' floating window and control layout.
+@MainActor
 struct SelectionAmountSheet: View {
     let session: EditorSession
     let operation: EditorSession.SelectionAmountOperation
@@ -235,6 +238,7 @@ struct SelectionAmountSheet: View {
     }
 }
 
+@MainActor
 struct ObjectSelectionToolIcon: View {
     var body: some View {
         Canvas { context, size in

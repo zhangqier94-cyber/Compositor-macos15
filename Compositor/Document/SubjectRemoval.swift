@@ -111,6 +111,7 @@ nonisolated enum SubjectRemoval {
 }
 
 
+@MainActor
 extension EditorSession {
     /// Select → Subject: the foreground Vision finds in the canvas as it is shown, outlined as a selection. The
     /// same shape Remove Background masks out, as a selection instead.

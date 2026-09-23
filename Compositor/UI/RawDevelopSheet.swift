@@ -3,6 +3,7 @@ import SwiftUI
 /// A RAW file holds more range than a layer can, so the choice of what to keep is made here rather
 /// than assumed. The preview develops at screen size while the sliders move; the import then
 /// develops the full frame once.
+@MainActor
 struct RawDevelopSheet: View {
     let session: EditorSession
     let url: URL
@@ -76,6 +77,7 @@ struct RawDevelopSheet: View {
     }
 }
 
+@MainActor
 extension View {
     func rawDevelopSheet(_ session: EditorSession) -> some View {
         sheet(isPresented: Binding(

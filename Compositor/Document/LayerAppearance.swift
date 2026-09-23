@@ -70,6 +70,7 @@ nonisolated enum LayerBlendMode: String, Codable, CaseIterable, Sendable {
     // brightness rather than working a channel at a time, and neither framework implements them.
 }
 
+@MainActor
 extension EditorSession {
     func displayedBlendMode(for layer: ImageLayer) -> LayerBlendMode {
         if let blendPreview, blendPreview.layerID == layer.id, activeLayerID == layer.id { return blendPreview.mode }

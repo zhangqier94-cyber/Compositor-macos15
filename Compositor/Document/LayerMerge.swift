@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 extension EditorSession {
     /// What ⌘E merges, in stacking order, and where the result goes; nil when there is nothing to merge.
     /// One layer merges with the layer beneath it in the same folder; several selected layers merge together

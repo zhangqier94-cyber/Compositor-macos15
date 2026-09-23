@@ -4,7 +4,7 @@ import Metal
 /// Layer effects on the GPU: the outline's reach and the shadow's blur are the two heavy passes, and both are
 /// separable, so each runs as a row pass and a column pass over the same pixels. Falls back to the CPU renderer
 /// when Metal isn't available (see `LayerEffectsRenderer`).
-final class MetalLayerEffects {
+nonisolated final class MetalLayerEffects {
     static let shared: MetalLayerEffects? = try? MetalLayerEffects()
     private let device: MTLDevice
     private let queue: MTLCommandQueue
@@ -18,10 +18,10 @@ final class MetalLayerEffects {
     private let inside: MTLComputePipelineState
     private let compose: MTLComputePipelineState
 
-    private struct Spread { var width: UInt32; var height: UInt32; var reach: UInt32; var smallest: UInt32 }
-    private struct Shift { var width: UInt32; var height: UInt32; var dx: Float; var dy: Float }
-    private struct Blur { var width: UInt32; var height: UInt32; var sigma: Float; var radius: UInt32 }
-    private struct Compose {
+    nonisolated private struct Spread { var width: UInt32; var height: UInt32; var reach: UInt32; var smallest: UInt32 }
+    nonisolated private struct Shift { var width: UInt32; var height: UInt32; var dx: Float; var dy: Float }
+    nonisolated private struct Blur { var width: UInt32; var height: UInt32; var sigma: Float; var radius: UInt32 }
+    nonisolated private struct Compose {
         var width: UInt32; var height: UInt32
         var strokeColor: SIMD4<Float>   // rgb, opacity
         var shadowColor: SIMD4<Float>

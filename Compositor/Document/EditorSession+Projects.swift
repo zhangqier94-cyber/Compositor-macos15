@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 extension EditorSession {
     func projectSnapshot() -> ProjectSnapshot? {
         guard let document else { return nil }

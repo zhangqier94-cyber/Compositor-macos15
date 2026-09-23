@@ -4,6 +4,7 @@ import AppKit
 /// Photoshop-style picker: saturation/brightness field, vertical hue strip,
 /// new/current preview, RGB and hex entry. Lives in a movable floating panel so
 /// the canvas stays visible and can be clicked to sample a color.
+@MainActor
 struct ColorPickerSheet: View {
     @Bindable var state: ColorPickerState
     let finish: (Bool) -> Void
@@ -145,6 +146,7 @@ struct ColorPickerSheet: View {
     }
 }
 
+@MainActor
 private struct HueArrow: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
@@ -162,6 +164,9 @@ extension PaletteColor {
 
 /// Hosts the picker in the shared floating panel: first opened centered on the canvas,
 /// afterwards wherever it was last left. Closing it with the title-bar button cancels.
+/// macOS 15 移植说明：原工程以 -default-isolation MainActor 编译，本类因此隐式主线程隔离。
+/// 命令行工具链（Swift 6.1.2）不支持该开关，故显式补上 @MainActor，语义与原设置一致。
+@MainActor
 final class ColorPickerPanelController: NSObject {
     static let identifier = NSUserInterfaceItemIdentifier("colorPickerPanel")
     private let panel = FloatingPanelController(name: "colorPickerPanel")

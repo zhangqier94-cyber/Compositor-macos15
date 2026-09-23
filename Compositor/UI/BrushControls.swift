@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 struct BrushControls: View {
     @Bindable var session: EditorSession
     var body: some View {
@@ -114,6 +115,7 @@ struct BrushControls: View {
 }
 
 /// A rubber stamp for the tool rail (SF Symbols has none): round handle, neck, body, and pad.
+@MainActor
 struct CloneStampToolIcon: View {
     var body: some View {
         Canvas { context, size in

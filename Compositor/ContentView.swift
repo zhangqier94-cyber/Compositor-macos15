@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+@MainActor
 struct ContentView: View {
     /// The Layers panel's width, remembered across launches.
     @AppStorage("layersPanelWidth") private var layersPanelWidth = 252.0
@@ -157,7 +158,8 @@ struct ContentView: View {
                     .disabled(session.isImporting || session.showsBusy || session.levels != nil)
                     .modifier(NewProjectDropTarget(workspace: applicationDelegate?.workspace))
             }
-            ToolbarSpacer(.fixed, placement: .navigation)
+            // macOS 15 兼容：ToolbarSpacer 是 macOS 26 新增 API，改用固定宽度的占位工具栏项
+            ToolbarItem(placement: .navigation) { Color.clear.frame(width: 8, height: 1) }
             if let workspace = applicationDelegate?.workspace {
                 ToolbarItem(placement: .navigation) {
                     ProjectTabStrip(workspace: workspace)
@@ -166,11 +168,13 @@ struct ContentView: View {
                         // strip scrolls instead.
                         .frame(width: max(200, windowWidth - 352), height: 34, alignment: .center)
                 }
-                .sharedBackgroundVisibility(.hidden)
+                // macOS 15 兼容：sharedBackgroundVisibility 是 macOS 26 新增 API，此处省略。
+                // 副作用：标签条会带上工具栏默认背景（原版在 macOS 26 上为透明），属纯外观差异。
             }
             // Absorb all remaining navigation-toolbar width before the zoom controls.
             // Without this spacer, the growing tab strip pushes the primary actions left.
-            ToolbarSpacer(.flexible, placement: .navigation)
+            // macOS 15 兼容：ToolbarSpacer 是 macOS 26 新增 API，改用可伸缩占位项
+            ToolbarItem(placement: .navigation) { Spacer() }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Fit") { session.fit() }.help("Fit canvas in window (⌘0)")
                     .accessibilityIdentifier("fitCanvas").disabled(session.document == nil)
@@ -382,6 +386,7 @@ struct ContentView: View {
 }
 
 /// A panel's divider that resizes the panel to its right: drag left to widen, right to narrow, within `range`.
+@MainActor
 private struct PanelResizeEdge: View {
     @Binding var width: Double
     let range: ClosedRange<Double>
@@ -403,12 +408,14 @@ private struct PanelResizeEdge: View {
     }
 }
 
+@MainActor
 extension View {
     /// Bordered buttons and pop-up menus drawn as capsules throughout the app. Borderless and plain buttons (the tool
     /// rail, the Layers panel footer) have no border to shape, so they're unaffected.
     func roundedControls() -> some View { buttonBorderShape(.capsule) }
 }
 
+@MainActor
 extension View {
     /// Return or Escape in a property field gives up its focus and hands it back to the canvas, so a tool's key
     /// works straight away instead of typing into the field.
@@ -451,6 +458,7 @@ extension View {
 
 /// Up and Down nudge the value in a focused property field, Shift by ten times as much — a text field takes the
 /// arrow keys for its insertion point, so they are caught while it holds focus.
+@MainActor
 private struct ArrowStepping: ViewModifier {
     let step: Double
     let value: () -> Double
@@ -474,6 +482,7 @@ private struct ArrowStepping: ViewModifier {
     }
 }
 
+@MainActor
 extension View {
     /// Up and Down step this field's value; each field's own binding keeps it in range.
     func arrowSteps(_ step: Double = 1, value: @escaping () -> Double, change: @escaping (Double) -> Void) -> some View {
@@ -495,6 +504,7 @@ extension View {
 }
 
 /// Reports the width it is laid out at. Kept out of the editor's body, whose type-checking is already near its limit.
+@MainActor
 private struct WidthReader: ViewModifier {
     @Binding var width: CGFloat
     func body(content: Content) -> some View {

@@ -1,6 +1,6 @@
 import AppKit
 
-struct TransformOverlayGeometry: Equatable {
+nonisolated struct TransformOverlayGeometry: Equatable {
     let handles: [CGPoint]
     let rotationHandle: CGPoint
     /// A distortion has no single rotation, so its rotation handle is hidden.
@@ -50,6 +50,7 @@ struct TransformOverlayGeometry: Equatable {
 }
 
 /// Separate overlay so selecting a layer does not redraw image pixels.
+@MainActor
 final class TransformOverlay: NSView {
     let session: EditorSession
     init(session: EditorSession) {

@@ -53,6 +53,7 @@ extension ImageLayer {
 }
 
 /// A shape being dragged out with the Shape tool, in whole document pixels.
+@MainActor
 struct ShapeDraft: Equatable {
     let kind: ShapeKind
     let anchor: CGPoint
@@ -63,6 +64,7 @@ struct ShapeDraft: Equatable {
     var cornerRadius: CGFloat = 0
 }
 
+@MainActor
 extension EditorSession {
     /// Pixels one shape layer may hold, the same budget as an import.
     nonisolated static let maxShapePixels = 100_000_000

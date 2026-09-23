@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct JPEGExportSheet: View {
     let raster: ExportRaster
     let finish: (Data?) -> Void

@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 extension EditorSession {
     /// Uses the ordinary color editors, but sends their changes to layer metadata.
     /// The source is only for the histogram and sampling; it never replaces layer pixels.

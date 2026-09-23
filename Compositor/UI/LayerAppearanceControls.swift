@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct LayerAppearanceControls: View {
     @Bindable var session: EditorSession
     let layerID: UUID?

@@ -252,7 +252,7 @@ final class ProjectController {
         return alert.runModal()
     }
 
-    private struct Incoming {
+    nonisolated private struct Incoming {
         let files: [(URL, Bool)]
         let point: CGPoint?
         let completion: CheckedContinuation<Void, Never>

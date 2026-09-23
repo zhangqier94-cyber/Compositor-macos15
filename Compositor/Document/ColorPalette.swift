@@ -17,6 +17,7 @@ nonisolated struct PaletteColor: Equatable, Sendable {
     }
 }
 
+@MainActor
 extension EditorSession {
     var foregroundColor: PaletteColor {
         get { PaletteColor(red: brushSettings.red, green: brushSettings.green, blue: brushSettings.blue) }
@@ -159,7 +160,7 @@ extension EditorSession {
 }
 
 /// What the open color picker edits: a palette swatch, or one end of the Gradient Map being edited.
-enum ColorPickerTarget: Equatable {
+nonisolated enum ColorPickerTarget: Equatable {
     case palette(background: Bool)
     /// A layer effect's own color.
     case effect(kind: LayerEffectKind)
@@ -176,6 +177,7 @@ enum ColorPickerTarget: Equatable {
 }
 
 /// The open color picker's working color. Nothing is written to the palette until OK.
+@MainActor
 @Observable
 final class ColorPickerState {
     let target: ColorPickerTarget
@@ -195,7 +197,7 @@ final class ColorPickerState {
 
 /// Hue in degrees, saturation and brightness 0...1. Kept as the picker's source of
 /// truth so hue survives dragging through grays and black.
-struct PickerHSB: Equatable {
+nonisolated struct PickerHSB: Equatable {
     var hue: CGFloat
     var saturation: CGFloat
     var brightness: CGFloat

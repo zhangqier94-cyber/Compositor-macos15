@@ -91,6 +91,7 @@ private nonisolated struct WandResult: @unchecked Sendable {
     let error: Error?
 }
 
+@MainActor
 extension EditorSession {
     /// The Magic Wand: selects pixels similar to the one at `point` (document pixels), read from
     /// the active layer or every visible layer, combined with the current selection by `mode`.

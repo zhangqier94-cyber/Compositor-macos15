@@ -1,6 +1,7 @@
 import AppKit
 
 /// Display-only comparison: new sample above, pre-drag color below.
+@MainActor
 final class SampleRingOverlay: NSView {
     var original = PaletteColor.black
     var sampled = PaletteColor.black

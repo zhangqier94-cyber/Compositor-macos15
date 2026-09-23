@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class CompositorApplicationDelegate: NSObject, NSApplicationDelegate {
     let workspace = ProjectWorkspace()
     var session: EditorSession { workspace.current.session }

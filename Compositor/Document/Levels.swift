@@ -101,6 +101,7 @@ nonisolated enum LevelsFilter {
     }
 }
 
+@MainActor
 @Observable
 final class LevelsEdit {
     let layerID: UUID
@@ -142,6 +143,7 @@ final class LevelsEdit {
     var previewJob: LevelsJob { LevelsJob(image: previewSource, settings: settings, selection: selection, mapping: previewMapping) }
 }
 
+@MainActor
 extension EditorSession {
     func beginLevels() {
         guard levels == nil, hueSaturation == nil, canAdjustColors else { return }

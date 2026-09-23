@@ -106,7 +106,7 @@ nonisolated enum DragBox {
 
 /// A lasso outline being drawn, in document pixels. `cursor` is the polygonal lasso's
 /// rubber-band end point.
-struct LassoDraft {
+nonisolated struct LassoDraft {
     var points: [CGPoint]
     var cursor: CGPoint?
     let mode: SelectionMode
@@ -115,6 +115,7 @@ struct LassoDraft {
     var anchor: CGPoint?
 }
 
+@MainActor
 extension EditorSession {
     var selection: DocumentSelection? { document?.selection }
     var canEditSelection: Bool { canEditLayers }

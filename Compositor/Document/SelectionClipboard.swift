@@ -1,13 +1,14 @@
 import AppKit
 
 /// Pixels copied from the canvas, with where they came from so Paste can put them back in place.
-struct PixelClipboard {
+nonisolated struct PixelClipboard {
     let image: CGImage
     let origin: CGPoint
     /// The system pasteboard's change count right after writing; a mismatch means another app copied since.
     let changeCount: Int
 }
 
+@MainActor
 extension EditorSession {
     /// Whole-pixel bounds of what Copy takes: the selection, or the whole canvas without one.
     /// Path boolean operations leave tiny float noise (59.9999999), so round with a tolerance

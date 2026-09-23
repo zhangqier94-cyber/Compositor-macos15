@@ -88,6 +88,7 @@ nonisolated enum BrushRaster {
 
 /// Only touched 256px tiles allocate writable pixels. Snapshots copy at most
 /// those tiles, never the entire layer on a mouse-move event.
+@MainActor
 final class BrushStroke {
     let layer: ImageLayer
     let isMask: Bool
@@ -130,7 +131,7 @@ final class BrushStroke {
     private var tailBackup: [Int: CGImage?] = [:]
     private var distanceToNext: CGFloat = 0
     private(set) var dirtyDocumentRect: CGRect?
-    private struct Tile { let rect: CGRect; let context: CGContext; var image: CGImage?; let base: CGImage? }
+    nonisolated private struct Tile { let rect: CGRect; let context: CGContext; var image: CGImage?; let base: CGImage? }
     private var tiles: [Int: Tile] = [:]
     private let gpu: MetalBrushCoverage?
     private var gpuTiles: [Int: MetalBrushCoverage.Tile] = [:]

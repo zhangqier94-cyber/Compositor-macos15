@@ -70,6 +70,7 @@ nonisolated enum MaskTracing {
     }
 }
 
+@MainActor
 extension EditorSession {
     /// Cmd-click on a mask thumbnail: the mask's black (hidden) areas become the
     /// selection. Shift adds to the current selection; Option subtracts from it.

@@ -240,13 +240,13 @@ nonisolated enum DistortWarp {
 
 /// The canvas's last warped preview, reused while the distortion and layer are unchanged.
 /// The last effects image warped for a distortion, so the corners can keep moving without redoing it.
-struct DistortEffectsCache {
+nonisolated struct DistortEffectsCache {
     let corners: [CGPoint]
     let image: CGImage
     let result: (image: CGImage, transform: LayerTransform)?
 }
 
-struct DistortPreviewCache {
+nonisolated struct DistortPreviewCache {
     let corners: [CGPoint]
     let draft: LayerTransform
     let image: CGImage
@@ -254,6 +254,7 @@ struct DistortPreviewCache {
     let result: (image: CGImage, mask: CGImage?, transform: LayerTransform)?
 }
 
+@MainActor
 extension EditorSession {
     /// Cmd-drag on a transform handle: the corners start moving freely. Each distortion resamples
     /// the pixels, so the edit then waits for Apply rather than applying on mouse-up.

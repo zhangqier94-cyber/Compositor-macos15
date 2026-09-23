@@ -39,7 +39,7 @@ final class EffectsPreviewCache {
         /// when the layer's own box was cropped as well as warped.
         var placement: LayerTransform? = nil
     }
-    private struct Entry {
+    nonisolated private struct Entry {
         let request: Request
         var result: Result?
     }

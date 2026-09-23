@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Native mouse-down selection and drag tracking, without a double-click delay.
+@MainActor
 struct NativeLayerList: NSViewRepresentable {
     let session: EditorSession
     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
@@ -41,6 +42,7 @@ struct NativeLayerList: NSViewRepresentable {
         if let table = scroll.documentView as? NSTableView { context.coordinator.update(table) }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         static let layerType = NSPasteboard.PasteboardType("com.compositor.layer-row")
         /// An Option-drag from a mask thumbnail: the id of the layer whose mask is being copied.
@@ -255,6 +257,7 @@ struct NativeLayerList: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class LayerTableView: NSTableView {
     weak var session: EditorSession?
     private var clippingTracking: NSTrackingArea?
@@ -457,6 +460,7 @@ final class LayerTableView: NSTableView {
     }
 }
 
+@MainActor
 private final class LayerCell: NSTableCellView, NSTextFieldDelegate {
     /// The layer's own name, without the mark a clipped layer's row shows in front of it.
     private var layerName = ""
@@ -849,6 +853,7 @@ private final class LayerCell: NSTableCellView, NSTextFieldDelegate {
 }
 
 /// An effect belongs visually to its layer but has its own selection and visibility control.
+@MainActor
 private final class LayerEffectRow: NSView, NSDraggingSource {
     fileprivate weak var session: EditorSession?
     fileprivate let layerID: UUID
@@ -943,6 +948,7 @@ private final class LayerEffectRow: NSView, NSDraggingSource {
 }
 
 /// Select on mouse-down, then let the table retain native drag and multiselect tracking.
+@MainActor
 private final class LayerThumbnailButton: NSButton, NSDraggingSource {
     /// The row's layer, for a mask thumbnail's Option-drag.
     var layerID: UUID?
@@ -1032,6 +1038,7 @@ private final class LayerThumbnailButton: NSButton, NSDraggingSource {
     }
 }
 
+@MainActor
 extension LayerThumbnailButton {
     /// Option-drag from a mask thumbnail carries a copy of the mask to another row; a click without a drag just
     /// selects the mask.
@@ -1059,6 +1066,7 @@ extension LayerThumbnailButton {
     }
 }
 /// One device pixel of faint white, ignored by clicks.
+@MainActor
 private final class RowEdgeLine: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let scale = window?.backingScaleFactor ?? 2
@@ -1069,6 +1077,7 @@ private final class RowEdgeLine: NSView {
 }
 /// A layer's eye. Pressing it shows or hides the layer; keeping the button down and dragging up or down the list
 /// gives every eye passed over the same state, as in Photoshop.
+@MainActor
 private final class EyeSwipeButton: NSButton {
     var layerID: UUID?
     weak var session: EditorSession?
@@ -1091,12 +1100,13 @@ private final class EyeSwipeButton: NSButton {
         }
     }
 }
+@MainActor
 private final class MaskDisabledMark: NSTextField {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// What a row's canvas-framed thumbnail shows, so it redraws only when one of these changes.
-private struct ThumbnailKey: Equatable {
+nonisolated private struct ThumbnailKey: Equatable {
     let image: ObjectIdentifier?
     let transform: LayerTransform
     let canvas: CGSize

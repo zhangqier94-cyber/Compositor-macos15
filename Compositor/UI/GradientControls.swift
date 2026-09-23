@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct GradientControls: View {
     @Bindable var session: EditorSession
 
@@ -62,6 +63,7 @@ struct GradientControls: View {
 
 /// One-color tool-rail icon: a Floyd–Steinberg dithered fade from empty to solid, so it
 /// reads as a gradient in the same monochrome style as the SF Symbols beside it.
+@MainActor
 struct GradientToolIcon: View {
     /// 16×16 so each dot is exactly 1 pt inside the icon's 16 pt frame.
     private static let pattern: [[Bool]] = {

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Reads and writes the open edit's settings, so sampling from the canvas and the panel's
 /// own controls always agree.
+@MainActor
 struct HueSaturationSheet: View {
     @Bindable var session: EditorSession
 
@@ -127,6 +128,7 @@ struct HueSaturationSheet: View {
 
 /// Photoshop's two spectrum bars: the hues as they are, the handles for the selected
 /// range's band, and the hues as the adjustment leaves them.
+@MainActor
 struct SpectrumEditor: View {
     @Binding var settings: HueSaturationSettings
     @State private var dragging: Int?

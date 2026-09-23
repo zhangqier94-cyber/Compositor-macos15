@@ -100,12 +100,12 @@ nonisolated struct LayerTransform: Equatable, Codable, Sendable {
 
 /// Several layers transformed together: the upright box around them when the edit began (what the draft edits),
 /// and each one's transform then.
-struct TransformGroup {
+nonisolated struct TransformGroup {
     let box: LayerTransform
     let originals: [UUID: LayerTransform]
 }
 
-struct TransformEdit {
+nonisolated struct TransformEdit {
     let layerID: UUID
     var draft: LayerTransform
     let persistent: Bool
@@ -120,8 +120,8 @@ struct TransformEdit {
     var group: TransformGroup? = nil
 }
 
-struct TransformDrag {
-    enum Mode { case move, resize(Int), rotate, distort(Int) }
+nonisolated struct TransformDrag {
+    nonisolated enum Mode { case move, resize(Int), rotate, distort(Int) }
     let original: LayerTransform
     let start: CGPoint
     let mode: Mode

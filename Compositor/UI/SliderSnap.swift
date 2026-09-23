@@ -7,7 +7,7 @@ import ObjectiveC
 /// press: tracking then begins with the knob already under the pointer, so it neither jumps nor
 /// glides, and dragging carries on from there. Pressing the knob itself still drags it from where
 /// it is. SwiftUI's `Slider` is an `NSSlider`, so this covers every slider in the app.
-enum SliderSnap {
+nonisolated enum SliderSnap {
     static func install() { _ = installed }
 
     private static let installed: Void = {

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 struct ColorPaletteControls: View {
     let session: EditorSession
     @State private var choosingMaskBackground: Bool?

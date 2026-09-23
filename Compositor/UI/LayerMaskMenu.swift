@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Adds a mask in one click: all white, or with a selection, the selection black.
 /// Enable/Disable and Delete live in the layer's context menu.
+@MainActor
 struct LayerMaskMenu: View {
     let session: EditorSession
     var body: some View {

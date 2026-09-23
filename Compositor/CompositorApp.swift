@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 @main
 struct CompositorApp: App {
     @NSApplicationDelegateAdaptor(CompositorApplicationDelegate.self) private var applicationDelegate

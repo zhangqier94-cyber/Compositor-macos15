@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import ImageIO
 
+@MainActor
 struct NewCanvasSheet: View {
     let session: EditorSession
     var onCreate: ((Int, Int) -> Void)? = nil
@@ -10,7 +11,7 @@ struct NewCanvasSheet: View {
     @State private var height = "1080"
     @State private var suggestedClipboardSize = false
     @FocusState private var focusedField: Field?
-    private enum Field { case width, height }
+    nonisolated private enum Field { case width, height }
     private var valid: Bool {
         CanvasDocument.validDimension(width) != nil && CanvasDocument.validDimension(height) != nil
     }

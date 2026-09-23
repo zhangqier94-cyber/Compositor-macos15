@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// The open filter's panel: its settings, Preview, and Cancel / OK.
+@MainActor
 struct FilterSheet: View {
     @Bindable var session: EditorSession
     private var edit: FilterEdit? { session.filterEdit }
@@ -148,6 +149,7 @@ struct FilterSheet: View {
 
 /// Gradient Map's two colors, the gradient they make, and Reverse. The colors are swatches like the
 /// tool rail's, and open the app's own color picker.
+@MainActor
 struct GradientMapControls: View {
     @Binding var settings: GradientMapSettings
     /// Opens the color picker on an end: false for Shadows, true for Highlights.

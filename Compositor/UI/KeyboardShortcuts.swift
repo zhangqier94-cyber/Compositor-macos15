@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ShortcutChord: Codable, Equatable, Hashable {
+nonisolated struct ShortcutChord: Codable, Equatable, Hashable {
     var key: String
     var modifiers: Int
     init(_ key: String, _ modifiers: Int = 0) { self.key = key; self.modifiers = modifiers }
@@ -60,7 +60,9 @@ struct ShortcutChord: Codable, Equatable, Hashable {
     }
 }
 
-struct ShortcutDefinition: Identifiable {
+// macOS 15 移植说明：原为隐式主线程隔离。本类型只是数据容器，且其 static let all
+// 的初始化表达式按 Swift 规则在非隔离上下文求值，故按作者的既有写法（见 L10n 等）标为 nonisolated。
+nonisolated struct ShortcutDefinition: Identifiable {
     let title: String
     let group: String
     let original: ShortcutChord
@@ -234,6 +236,7 @@ final class ShortcutSettings {
     }
 }
 
+@MainActor
 extension View {
     func configuredNativeShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = []) -> some View {
         let chord = ShortcutSettings.shared.native(key, modifiers: modifiers)
@@ -247,6 +250,7 @@ extension View {
     }
 }
 
+@MainActor
 private struct KeyboardShortcutsSheet: View {
     let settings: ShortcutSettings
     @State private var draft: [String: ShortcutChord]
@@ -305,6 +309,7 @@ private struct KeyboardShortcutsSheet: View {
     }
 }
 
+@MainActor
 private struct ShortcutRecorder: NSViewRepresentable {
     let chord: ShortcutChord
     let recording: Bool

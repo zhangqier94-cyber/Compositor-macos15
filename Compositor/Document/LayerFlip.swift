@@ -17,6 +17,7 @@ extension LayerTransform {
     }
 }
 
+@MainActor
 extension EditorSession {
     /// Flips the selected layer about its own middle — or several selected layers, or a folder's contents, about
     /// the middle of the box around them — as one undo step. Masks follow the link: a linked mask flips with its

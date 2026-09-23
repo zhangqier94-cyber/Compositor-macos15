@@ -1,10 +1,11 @@
 import AppKit
 import SwiftUI
 
-enum CanvasRuler {
+nonisolated enum CanvasRuler {
     static let thickness: CGFloat = 18
 }
 
+@MainActor
 struct CanvasRulerCorner: View {
     var body: some View {
         Rectangle()
@@ -20,6 +21,7 @@ struct CanvasRulerCorner: View {
     }
 }
 
+@MainActor
 struct CanvasRulerView: NSViewRepresentable {
     let session: EditorSession
     let axis: CanvasGuide.Axis
@@ -38,6 +40,7 @@ struct CanvasRulerView: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class CanvasRulerNSView: NSView {
     var session: EditorSession
     var axis: CanvasGuide.Axis

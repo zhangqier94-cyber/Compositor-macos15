@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct LevelsSheet: View {
     @Bindable var session: EditorSession
     private var edit: LevelsEdit? { session.levels }

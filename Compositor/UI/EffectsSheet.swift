@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// One effect's controls, bound to the layer that opened the panel. Changes preview on the canvas.
+@MainActor
 struct EffectsSheet: View {
     @Bindable var session: EditorSession
     let kind: LayerEffectKind

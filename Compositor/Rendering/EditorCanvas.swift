@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 struct EditorCanvas: NSViewRepresentable {
     let session: EditorSession
     func makeNSView(context: Context) -> CanvasView { CanvasView(session: session) }
@@ -16,6 +17,7 @@ struct EditorCanvas: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class CanvasView: NSView {
     var inlineTextEditor: InlineTextEditor?
     var textBoxAnchor: CGPoint?
@@ -73,7 +75,7 @@ final class CanvasView: NSView {
     /// View point where a targeted-adjustment drag began.
     private var hueTargetStart: CGPoint?
     private var samplingColor = false
-    private enum GradientHandle { case start, end }
+    nonisolated private enum GradientHandle { case start, end }
     private var gradientDrag: GradientHandle?
     private var antsTimer: Timer?
     private var modifierMonitor: Any?
@@ -227,7 +229,7 @@ final class CanvasView: NSView {
         return NSCursor(image: image, hotSpot: base.hotSpot)
     }
     /// Which selection tool a crosshair names: the tool rail's icon, small, beneath and right of the crosshair.
-    enum SelectionIcon: CaseIterable { case freehandLasso, polygonalLasso, rectangleMarquee, ellipseMarquee, objectSelection }
+    nonisolated enum SelectionIcon: CaseIterable { case freehandLasso, polygonalLasso, rectangleMarquee, ellipseMarquee, objectSelection }
 
     /// Crosshair with the tool's icon, and a "+" (add) or "−" (subtract) beside the icon, as Photoshop shows.
     static let selectionCursors: [SelectionIcon: [SelectionMode: NSCursor]] = Dictionary(uniqueKeysWithValues:
@@ -438,8 +440,8 @@ final class CanvasView: NSView {
     /// zooms a step on release instead.
     private var zoomDrag: (start: CGPoint, zoom: CGFloat, moved: Bool)?
 
-    private struct DisplayState: Equatable {
-        struct Layer: Equatable {
+    nonisolated private struct DisplayState: Equatable {
+        nonisolated struct Layer: Equatable {
             let id: UUID
             let transform: LayerTransform
             let imageID: ObjectIdentifier?
@@ -463,7 +465,7 @@ final class CanvasView: NSView {
         let viewport: CanvasViewport
         let layers: [Layer]
         /// Folders have no pixels, so their masks are tracked apart from `layers`.
-        struct FolderMask: Equatable {
+        nonisolated struct FolderMask: Equatable {
             let id: UUID
             let maskID: ObjectIdentifier?
             let transform: LayerTransform
@@ -1165,7 +1167,7 @@ final class CanvasView: NSView {
         return image
     }
 
-    private struct ClonePreviewKey: Equatable {
+    nonisolated private struct ClonePreviewKey: Equatable {
         let center: CGPoint
         let diameter: CGFloat
         let scale: CGFloat

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// The Crop tool's header. A view of its own because dragging the crop frame changes `cropRect` on
 /// every mouse move: read here, only this bar re-renders, not the whole editor and its Layers panel.
+@MainActor
 struct CropControls: View {
     @Bindable var session: EditorSession
 

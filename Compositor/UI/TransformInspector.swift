@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct TransformInspector: View {
     @Bindable var session: EditorSession
     private var value: LayerTransform {
@@ -74,6 +75,7 @@ struct TransformInspector: View {
     }
 }
 
+@MainActor
 private struct TransformValueField: View {
     let label: String
     var suffix: String? = nil

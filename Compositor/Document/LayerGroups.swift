@@ -92,6 +92,7 @@ extension CanvasDocument {
     }
 }
 
+@MainActor
 extension EditorSession {
     func selectLayers(_ ids: Set<UUID>, primary: UUID?) {
         effectSelection = nil

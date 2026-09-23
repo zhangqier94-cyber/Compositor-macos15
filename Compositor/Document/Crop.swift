@@ -26,8 +26,8 @@ nonisolated enum CropGeometry {
     }
 }
 
-struct CropDrag {
-    enum Mode { case create, move, resize(Int) }
+nonisolated struct CropDrag {
+    nonisolated enum Mode { case create, move, resize(Int) }
     let start: CGPoint
     let original: CGRect
     let mode: Mode
@@ -111,6 +111,7 @@ nonisolated struct CropSnap {
     }
 }
 
+@MainActor
 extension EditorSession {
     /// What a moving layer snaps to: View > Snap To targets, including the canvas and other layers by default.
     func transformSnapTargets(excluding moving: Set<UUID>) -> (xs: [CGFloat], ys: [CGFloat]) {

@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Shared metrics keep tool switching from changing typography or canvas layout.
+@MainActor
 enum ToolHeaderStyle {
     static let height: CGFloat = 42
     static let titleFont = Font.system(size: 13, weight: .semibold)
     static let controlFont = Font.system(size: 12)
 }
 
+@MainActor
 extension View {
     /// Keeps a unit ("%", "px") tight against its field so the two read as one value,
     /// regardless of the wider spacing between controls in a bar.

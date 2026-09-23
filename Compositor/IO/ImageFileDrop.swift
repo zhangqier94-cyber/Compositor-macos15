@@ -2,9 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Resolve in pasteboard order; the importer validates contents rather than trusting extensions.
-@MainActor
-enum ImageFileDrop {
-    static func importProviders(_ providers: [NSItemProvider], into session: EditorSession, at point: CGPoint?, projects: ProjectController? = nil, workspace: ProjectWorkspace? = nil, destination: UUID? = nil) async {
+nonisolated enum ImageFileDrop {
+    // macOS 15 移植说明：本方法直接读写 EditorSession（主线程隔离）的状态，故显式标注。
+    @MainActor static func importProviders(_ providers: [NSItemProvider], into session: EditorSession, at point: CGPoint?, projects: ProjectController? = nil, workspace: ProjectWorkspace? = nil, destination: UUID? = nil) async {
         var urls: [URL] = []
         var unreadable = false
         for provider in providers {

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ShapeControls: View {
     @Bindable var session: EditorSession
 

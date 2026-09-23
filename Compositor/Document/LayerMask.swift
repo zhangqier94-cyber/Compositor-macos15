@@ -216,6 +216,7 @@ extension ProjectSnapshot {
     }
 }
 
+@MainActor
 extension EditorSession {
     /// Layers and folders alike take a mask.
     var canEditMask: Bool { canEditLayers && selectedLayerIDs.count == 1 && activeLayer != nil }
@@ -366,7 +367,7 @@ extension EditorSession {
 }
 
 /// The canvas's last preview of an unlinked mask being distorted on its own.
-struct MaskDistortPreviewCache {
+nonisolated struct MaskDistortPreviewCache {
     let corners: [CGPoint]
     let draft: LayerTransform
     let mask: CGImage
@@ -374,6 +375,7 @@ struct MaskDistortPreviewCache {
     let result: CGImage?
 }
 
+@MainActor
 extension EditorSession {
     /// An unlinked mask being distorted on its own: the warped mask resampled into the layer's grid, for the canvas.
     func maskDistortPreview(for layer: ImageLayer) -> CGImage? {
@@ -399,6 +401,7 @@ extension ImageLayer {
     var maskTransform: LayerTransform { mask?.placement ?? transform }
 }
 
+@MainActor
 extension BrushStroke {
     /// Painting a mask on its own placement (the stroke's grid is the mask's): the mask as the stroke leaves it,
     /// resampled into the layer's grid at preview size, for the canvas to draw the layer through.

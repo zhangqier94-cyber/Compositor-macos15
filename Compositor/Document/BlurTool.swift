@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 
+@MainActor
 extension EditorSession {
     /// What a Blur stroke paints: the active layer (or, with `mask`, its mask) as the canvas shows it, at document
     /// size, softened by an amount that follows the brush size. It is taken when the stroke starts, so going over an

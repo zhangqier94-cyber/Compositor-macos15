@@ -9,6 +9,7 @@ nonisolated struct CloneSettings: Equatable, Sendable {
     var sampleAllLayers = false
 }
 
+@MainActor
 extension EditorSession {
     /// Option-click: where Clone Stamp copies from. A new source starts a new alignment.
     func setCloneSource(_ point: CGPoint) {

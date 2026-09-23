@@ -267,6 +267,7 @@ private nonisolated struct ObjectSelectionResult: @unchecked Sendable {
     let error: Error?
 }
 
+@MainActor
 extension EditorSession {
     /// Object Selection: selects the Vision foreground instance under `point`, read from
     /// the active layer or every visible layer, combined with the current selection by `mode`.

@@ -3,7 +3,7 @@ import AppKit
 /// Cmd-T with a selection: the selected pixels float on a temporary layer, edited with the
 /// normal transform handles, then merge back into their layer. The whole thing is one
 /// "Transform Selection" undo step; Escape restores the document exactly.
-struct FloatingTransform {
+nonisolated struct FloatingTransform {
     let sourceID: UUID
     let before: CanvasDocument
     let beforeActive: UUID?
@@ -11,6 +11,7 @@ struct FloatingTransform {
     let pixelSize: CGSize
 }
 
+@MainActor
 extension EditorSession {
     var canTransformSelection: Bool {
         guard transformEdit == nil, canEditPixels, !isMaskSelected, let selection, !selection.isEmpty,

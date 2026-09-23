@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct NavigationToolHeader: View {
     @Bindable var session: EditorSession
     @State private var zoomText = ""

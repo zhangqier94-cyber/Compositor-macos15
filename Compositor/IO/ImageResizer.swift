@@ -101,6 +101,7 @@ actor ImageResizer {
     }
 }
 
+@MainActor
 extension EditorSession {
     func applyImageSize(_ snapshot: ProjectSnapshot) {
         applyDocumentSize(snapshot, actionName: "Image Size")

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Intercepts only close approval and forwards SwiftUI's other window callbacks.
+@MainActor
 struct ProjectWindowBridge: NSViewRepresentable {
     let controller: ProjectController
     func makeNSView(context: Context) -> ProjectWindowView { ProjectWindowView(controller: controller) }
@@ -13,6 +14,7 @@ struct ProjectWindowBridge: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class ProjectWindowView: NSView {
     var controller: ProjectController
     private let proxy = ProjectWindowDelegate()
@@ -42,6 +44,7 @@ final class ProjectWindowView: NSView {
     }
 }
 
+@MainActor
 private final class ProjectWindowDelegate: NSObject, NSWindowDelegate {
     weak var previous: NSWindowDelegate?
     weak var controller: ProjectController?

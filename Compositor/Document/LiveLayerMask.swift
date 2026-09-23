@@ -19,6 +19,7 @@ nonisolated enum LiveMaskGraph {
     }
 }
 
+@MainActor
 extension EditorSession {
     func canLinkMask(source: UUID, target: UUID) -> Bool {
         guard canEditLayers, source != target, let layers = document?.layers,
@@ -97,6 +98,7 @@ nonisolated enum LiveMaskBaker {
     }
 }
 
+@MainActor
 extension EditorSession {
     func deleteWithLiveMaskChoice(_ id: UUID) -> Bool { deleteWithLiveMaskChoice([id]) }
     /// When layers being deleted supply live masks to layers that stay, asks whether to bake or unlink,
@@ -155,6 +157,7 @@ extension EditorSession {
 }
 
 
+@MainActor
 extension EditorSession {
     func drawLiveComposite(_ document: CanvasDocument, in context: CGContext, onSurface: Bool = false) {
         if !onSurface, document.layers.contains(where: { $0.adjustment != nil }) {
@@ -201,6 +204,7 @@ extension EditorSession {
 }
 
 
+@MainActor
 extension EditorSession {
     func canToggleClippingMask(_ id: UUID) -> Bool {
         guard canEditLayers, let layers = document?.layers,

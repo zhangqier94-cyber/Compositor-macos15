@@ -55,7 +55,7 @@ extension ImageLayer {
     }
 }
 
-struct TextDraft: Identifiable {
+nonisolated struct TextDraft: Identifiable {
     let id = UUID()
     let documentID: UUID
     let layerID: UUID?
@@ -64,6 +64,7 @@ struct TextDraft: Identifiable {
     var style: LayerTextStyle
 }
 
+@MainActor
 extension EditorSession {
     func beginText(at point: CGPoint, newLayer: Bool = false) {
         guard canEditLayers, textDraft == nil, let document, point.x.isFinite, point.y.isFinite else { return }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CanvasSizeSheet: View {
     let foreground: PaletteColor
     let background: PaletteColor

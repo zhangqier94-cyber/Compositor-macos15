@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ImageLayer: Identifiable, Equatable {
+nonisolated struct ImageLayer: Identifiable, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.isVisible == rhs.isVisible && lhs.transform == rhs.transform
             && lhs.asset?.image === rhs.asset?.image && lhs.parentID == rhs.parentID && lhs.isGroup == rhs.isGroup && lhs.opacity == rhs.opacity && lhs.blendMode == rhs.blendMode && lhs.mask == rhs.mask && lhs.maskSourceID == rhs.maskSourceID && lhs.adjustment == rhs.adjustment && lhs.shape == rhs.shape && lhs.text == rhs.text && lhs.effects == rhs.effects
@@ -58,7 +58,7 @@ struct ImageLayer: Identifiable, Equatable {
     }
 }
 
-struct CanvasDocument: Equatable {
+nonisolated struct CanvasDocument: Equatable {
     let id: UUID
     let width: Int
     let height: Int
@@ -86,7 +86,7 @@ struct CanvasDocument: Equatable {
     }
 }
 
-enum NavigationTool: String, CaseIterable {
+nonisolated enum NavigationTool: String, CaseIterable {
     case move, marquee, lasso, wand, crop, brush, spotHealing, cloneStamp, blur, gradient, shape, type, eyedropper, hand, zoom
     /// No tool (A): nothing in the tool rail is selected and canvas clicks do nothing.
     case idle
@@ -98,6 +98,7 @@ enum NavigationTool: String, CaseIterable {
     var label: String { L10n.text(self == .type ? "Type (T)" : self == .eyedropper ? "Eyedropper (I)" : self == .marquee ? "Marquee (M)" : self == .lasso ? "Lasso (L)" : self == .wand ? "Magic (W) · Tab switches Wand and Object" : self == .brush ? "Brush (B) · Eraser (E)" : self == .spotHealing ? "Spot Healing Brush (J)" : self == .cloneStamp ? "Clone Stamp (S) · Option-click sets the source" : self == .blur ? "Smear (R)" : self == .gradient ? "Gradient (G)" : self == .shape ? "Shape (U) · Shift-U switches Rectangle/Ellipse" : self == .crop ? "Crop (C)" : self == .move ? "Move / Transform (V)" : self == .hand ? "Hand (H)" : "Zoom (Z)") }
 }
 
+@MainActor
 @Observable
 final class EditorSession {
     var skipsInitialClipboardCanvasSize = false
@@ -710,7 +711,7 @@ final class EditorSession {
         document?.layers.swapAt(a, b)
         endEdit()
     }
-    private struct ImportRequest {
+    nonisolated private struct ImportRequest {
         let files: [(url: URL, scoped: Bool)]
         let point: CGPoint?
         let completion: CheckedContinuation<Void, Never>

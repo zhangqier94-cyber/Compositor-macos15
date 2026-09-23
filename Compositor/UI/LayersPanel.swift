@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct LayersPanel: View {
     @Bindable var session: EditorSession
     /// Dragging the panel's left edge sets it, within `widths`.
@@ -71,6 +72,7 @@ struct LayersPanel: View {
 
 }
 
+@MainActor
 extension View {
     /// Makes a small footer icon easier to click. The padding is the clickable area, so the
     /// footer's own spacing is reduced to match and every icon keeps its old position.

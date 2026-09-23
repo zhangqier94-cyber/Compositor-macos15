@@ -32,7 +32,7 @@ nonisolated struct CanvasGuide: Codable, Equatable, Sendable, Hashable {
 }
 
 /// Non-printing layout grid: a major line every 64 px, eight subdivisions (every 8 px).
-enum LayoutGrid {
+nonisolated enum LayoutGrid {
     static let spacing: CGFloat = 64
     static let subdivisions = 8
     static var step: CGFloat { spacing / CGFloat(subdivisions) }
@@ -55,7 +55,7 @@ enum LayoutGrid {
 }
 
 /// In-progress create or move; the document is updated only when the drag finishes.
-struct GuideDrag: Equatable {
+nonisolated struct GuideDrag: Equatable {
     var id: UUID
     var axis: CanvasGuide.Axis
     var position: Double
@@ -63,6 +63,7 @@ struct GuideDrag: Equatable {
     var original: Double?
 }
 
+@MainActor
 extension EditorSession {
     /// Cyan, as Photoshop's default guide color.
     static let guideColor = CGColor(srgbRed: 0, green: 1, blue: 1, alpha: 0.9)

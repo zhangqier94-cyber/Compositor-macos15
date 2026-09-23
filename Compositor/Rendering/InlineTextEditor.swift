@@ -2,6 +2,7 @@ import AppKit
 
 /// A native text system on the canvas: selection, marked text/IME, clipboard and local undo
 /// stay with NSTextView. Its logical bounds are layer pixels; the containing view supplies zoom.
+@MainActor
 final class CanvasTextView: NSTextView {
     weak var editor: InlineTextEditor?
     private let textUndo = UndoManager()
@@ -34,6 +35,7 @@ final class CanvasTextView: NSTextView {
     override func resetCursorRects() {}
 }
 
+@MainActor
 final class InlineTextEditor: NSView, NSTextViewDelegate {
     weak var canvas: CanvasView?
     let textView = CanvasTextView(frame: .zero)
@@ -43,7 +45,7 @@ final class InlineTextEditor: NSView, NSTextViewDelegate {
     private var logicalSize = CGSize(width: 360, height: 160)
     private var handleSize: CGFloat = 6
     private var shownTransform: LayerTransform?
-    private struct Geometry: Equatable {
+    nonisolated private struct Geometry: Equatable {
         let transform: LayerTransform
         let logicalSize: CGSize
         let anchor: CGPoint
@@ -376,6 +378,7 @@ final class InlineTextEditor: NSView, NSTextViewDelegate {
     override func mouseUp(with event: NSEvent) { resize = nil; window?.makeFirstResponder(textView) }
 }
 
+@MainActor
 extension CanvasView {
     func synchronizeInlineText() {
         guard let draft = session.textDraft else {

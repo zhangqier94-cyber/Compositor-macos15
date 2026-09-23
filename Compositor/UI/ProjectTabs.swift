@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import AppKit
 import Combine
 
+@MainActor
 struct ProjectWorkspaceView: View {
     let applicationDelegate: CompositorApplicationDelegate
     private var workspace: ProjectWorkspace { applicationDelegate.workspace }
@@ -18,6 +19,7 @@ struct ProjectWorkspaceView: View {
     }
 }
 
+@MainActor
 struct ProjectTabStrip: View {
     let workspace: ProjectWorkspace
     @State private var dragging = false
@@ -75,6 +77,7 @@ struct ProjectTabStrip: View {
     }
 }
 
+@MainActor
 private struct NewTabDropSlot: View {
     let workspace: ProjectWorkspace
     @State private var targeted = false
@@ -93,6 +96,7 @@ private struct NewTabDropSlot: View {
     }
 }
 
+@MainActor
 private struct ProjectTabButton: View {
     let workspace: ProjectWorkspace
     let tab: ProjectTab
@@ -127,6 +131,7 @@ private struct ProjectTabButton: View {
     }
 }
 
+@MainActor
 struct NewProjectDropTarget: ViewModifier {
     let workspace: ProjectWorkspace?
     @State private var targeted = false
@@ -139,6 +144,7 @@ struct NewProjectDropTarget: ViewModifier {
     }
 }
 
+@MainActor
 extension ProjectWorkspace {
     /// The tab a layer drag started from: drops carry only the layer's id, and the drag pasteboard can be read
     /// while the drag is still in the air, before any drop.
@@ -155,7 +161,7 @@ extension ProjectWorkspace {
     }
 }
 
-private struct ProjectTabDropDelegate: DropDelegate {
+nonisolated private struct ProjectTabDropDelegate: DropDelegate {
     let workspace: ProjectWorkspace?
     let destination: UUID?
     @Binding var targeted: Bool

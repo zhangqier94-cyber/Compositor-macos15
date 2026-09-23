@@ -188,11 +188,12 @@ nonisolated enum LayerEffectKind: String, CaseIterable, Sendable {
     case stroke = "Stroke", shadow = "Drop Shadow", colorOverlay = "Color Overlay", innerShadow = "Inner Shadow", outerGlow = "Outer Glow"
 }
 
-struct LayerEffectSelection: Equatable {
+nonisolated struct LayerEffectSelection: Equatable {
     let layerID: UUID
     let kind: LayerEffectKind
 }
 
+@MainActor
 extension EditorSession {
     var canEditEffects: Bool { canEditLayers && activeLayer?.isGroup == false && activeLayer?.asset != nil }
     var activeEffects: LayerEffects { activeLayer?.effects ?? LayerEffects() }
